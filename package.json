@@ -1,0 +1,77 @@
+{
+  "name": "wasteland-archive",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "废土馆藏 · Wasteland Archive · 本地优先的杂志 / PDF / 图片 / 媒体浏览终端",
+  "author": "Jacob Cui",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "node server/index.js",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server/index.js",
+    "desktop": "electron .",
+    "desktop:prepare": "node scripts/prepare-native.mjs",
+    "desktop:build": "npm run build && npm run desktop:prepare && electron-builder --mac dir",
+    "desktop:zip": "npm run desktop:build && sh scripts/zip-native.sh"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@mdi/font": "^7.4.47",
+    "express": "^4.19.2",
+    "ffmpeg-static": "^5.3.0",
+    "hls.js": "^1.7.4",
+    "pdfjs-dist": "^4.10.38",
+    "playwright": "^1.49.0",
+    "vue": "^3.5.13",
+    "vuetify": "^3.7.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "sass": "^1.83.0",
+    "vite": "^6.0.5",
+    "vite-plugin-vuetify": "^2.0.4"
+  },
+  "build": {
+    "appId": "com.wasteland.archive",
+    "productName": "废土馆藏",
+    "asar": false,
+    "npmRebuild": false,
+    "directories": {
+      "output": "release/native",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "server/**",
+      "dist/**",
+      "bg_screens/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native-resources/playwright-browsers",
+        "to": "playwright-browsers"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "identity": null,
+      "hardenedRuntime": false
+    }
+  }
+}

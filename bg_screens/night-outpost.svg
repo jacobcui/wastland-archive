@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c0b1c"/>
+      <stop offset="0.45" stop-color="#241f43"/>
+      <stop offset="0.75" stop-color="#5b3350"/>
+      <stop offset="1" stop-color="#b26045"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#241b1a"/>
+      <stop offset="1" stop-color="#080706"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#ffb000" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#ff6a2a" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#ff6a2a" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1.8" fill="#050408" opacity="0.55"/>
+      <circle cx="10" cy="9" r="1" fill="#050408" opacity="0.4"/>
+    </pattern>
+    <pattern id="hatch" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(18)">
+      <line x1="0" y1="0" x2="0" y2="22" stroke="#050408" stroke-width="1.6" opacity="0.4"/>
+    </pattern>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="23" result="n"/>
+      <feColorMatrix in="n" type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.1"/></feComponentTransfer>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <circle cx="1440" cy="220" r="150" fill="#d9c9a1" stroke="#07050a" stroke-width="10"/>
+  <circle cx="1440" cy="220" r="190" fill="none" stroke="#07050a" stroke-width="4" opacity="0.4"/>
+  <g fill="#e7d6a8" opacity="0.65">
+    <circle cx="220" cy="150" r="2.5"/><circle cx="380" cy="90" r="1.8"/><circle cx="560" cy="210" r="2.2"/>
+    <circle cx="760" cy="120" r="1.5"/><circle cx="980" cy="180" r="2.4"/><circle cx="1120" cy="80" r="1.7"/>
+    <circle cx="1680" cy="120" r="2.1"/><circle cx="1800" cy="300" r="1.6"/><circle cx="1300" cy="340" r="1.8"/>
+  </g>
+  <path d="M0 660 L220 570 L420 650 L620 560 L820 660 L1030 575 L1240 660 L1450 590 L1670 670 L1920 590 L1920 800 L0 800 Z" fill="#1b1520" stroke="#07050a" stroke-width="12"/>
+  <path d="M0 760 L240 700 L470 760 L700 690 L930 770 L1160 700 L1400 775 L1640 710 L1920 770 L1920 1080 L0 1080 Z" fill="url(#ground)" stroke="#07050a" stroke-width="12"/>
+
+  <circle cx="960" cy="730" r="430" fill="url(#glow)"/>
+
+  <g stroke="#07050a" stroke-width="7" fill="#231a18">
+    <rect x="300" y="650" width="260" height="170"/>
+    <rect x="560" y="600" width="180" height="220"/>
+    <rect x="740" y="680" width="250" height="150"/>
+    <rect x="990" y="620" width="210" height="210"/>
+    <rect x="1200" y="660" width="300" height="170"/>
+    <path d="M340 650 L380 580 L520 580 L560 650 Z" fill="#3a2420"/>
+    <path d="M600 600 L650 530 L710 530 L750 600 Z" fill="#3a2420"/>
+    <path d="M1030 620 L1080 550 L1140 550 L1180 620 Z" fill="#3a2420"/>
+    <path d="M1250 660 L1300 590 L1450 590 L1490 660 Z" fill="#3a2420"/>
+  </g>
+  <g fill="#ffb000" stroke="#07050a" stroke-width="4">
+    <rect x="335" y="690" width="42" height="42"/>
+    <rect x="405" y="690" width="42" height="42"/>
+    <rect x="610" y="650" width="30" height="60"/>
+    <rect x="675" y="650" width="30" height="60"/>
+    <rect x="1045" y="670" width="40" height="40"/>
+    <rect x="1110" y="670" width="40" height="40"/>
+    <rect x="1270" y="710" width="50" height="30"/>
+    <rect x="1360" y="710" width="50" height="30"/>
+  </g>
+  <g font-family="Impact, sans-serif" font-size="40" fill="#ffcf4a" stroke="#07050a" stroke-width="3">
+    <text x="420" y="880" transform="rotate(-4 420 880)">THE RUST BELT</text>
+    <text x="1230" y="900" font-size="30" fill="#7ee0c1" transform="rotate(3 1230 900)">OPEN 24H</text>
+  </g>
+
+  <g stroke="#07050a" stroke-width="6" fill="#15100f">
+    <path d="M150 880 L150 500 L170 500 L170 880 Z"/>
+    <path d="M100 520 L220 520 L220 540 L100 540 Z"/>
+    <path d="M120 540 L140 540 L140 700 L120 700 Z"/>
+    <path d="M180 540 L200 540 L200 700 L180 700 Z"/>
+    <path d="M40 500 L280 550" fill="none" stroke-width="3"/>
+    <path d="M40 560 L280 610" fill="none" stroke-width="3"/>
+    <path d="M1700 900 L1700 460 L1720 460 L1720 900 Z"/>
+    <path d="M1650 480 L1790 480 L1790 500 L1650 500 Z"/>
+  </g>
+  <g fill="#07050a">
+    <path d="M1720 460 l-30 -50 l30 14 l20 -40 l8 46 l34 -16 l-22 46 z"/>
+  </g>
+
+  <g fill="none" stroke="#07050a" stroke-width="3" opacity="0.8">
+    <path d="M0 900 C260 850 520 930 780 880 C1040 830 1280 910 1540 860 C1720 825 1840 850 1920 860"/>
+    <path d="M0 950 C240 900 500 980 760 930 C1020 880 1260 960 1520 910 C1710 872 1840 900 1920 910"/>
+  </g>
+  <g fill="#07050a" opacity="0.8">
+    <path d="M1000 300 l14 -12 l4 17 l18 -5 l-5 17 l18 3 l-16 10 l10 14 l-18 -6 l-2 18 l-12 -14 l-10 14 l-3 -18 l-17 6 l10 -14 l-16 -10 l18 -3 l-5 -17 z"/>
+  </g>
+
+  <rect width="1920" height="1080" fill="url(#hatch)" opacity="0.55"/>
+  <rect width="1920" height="1080" fill="url(#dots)" opacity="0.3"/>
+  <rect width="1920" height="1080" filter="url(#grain)" opacity="0.6"/>
+  <rect y="760" width="1920" height="320" fill="#040306" opacity="0.3"/>
+</svg>

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e1714"/>
+      <stop offset="0.4" stop-color="#294a31"/>
+      <stop offset="0.7" stop-color="#728a3d"/>
+      <stop offset="1" stop-color="#c0a33d"/>
+    </linearGradient>
+    <linearGradient id="acid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d7f252"/>
+      <stop offset="0.5" stop-color="#6ea82f"/>
+      <stop offset="1" stop-color="#1e3b1c"/>
+    </linearGradient>
+    <linearGradient id="rock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5d4a32"/>
+      <stop offset="1" stop-color="#17130d"/>
+    </linearGradient>
+    <pattern id="halftone" width="13" height="13" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.7" fill="#081008" opacity="0.55"/>
+      <circle cx="9" cy="8" r="1" fill="#081008" opacity="0.4"/>
+    </pattern>
+    <pattern id="hatch" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(-24)">
+      <line x1="0" y1="0" x2="0" y2="24" stroke="#071008" stroke-width="1.8" opacity="0.45"/>
+    </pattern>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="19" result="n"/>
+      <feColorMatrix in="n" type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.11"/></feComponentTransfer>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <path d="M0 570 L160 420 L300 505 L470 350 L640 500 L820 390 L1000 520 L1190 420 L1380 535 L1570 400 L1760 520 L1920 430 L1920 700 L0 700 Z" fill="url(#rock)" stroke="#0a0805" stroke-width="12"/>
+  <path d="M0 690 L220 620 L430 690 L640 610 L860 700 L1080 620 L1300 705 L1520 625 L1730 700 L1920 640 L1920 800 L0 800 Z" fill="#3b3420" stroke="#0a0805" stroke-width="10"/>
+
+  <path d="M0 1080 C300 880 500 920 760 840 C1020 760 1240 860 1500 790 C1700 737 1830 760 1920 760 L1920 1080 Z" fill="url(#acid)" stroke="#0a0805" stroke-width="14"/>
+  <path d="M220 920 C420 870 620 900 800 870 C1000 836 1180 870 1370 830" fill="none" stroke="#d9f36a" stroke-width="9" opacity="0.5"/>
+  <path d="M480 1000 C680 940 900 980 1100 940 C1300 900 1520 930 1720 880" fill="none" stroke="#0a0805" stroke-width="4" opacity="0.45"/>
+
+  <g fill="#15120d" stroke="#0a0805" stroke-width="8">
+    <path d="M120 1080 L180 660 L230 600 L280 660 L350 1080 Z"/>
+    <path d="M360 1080 L390 700 L430 620 L480 700 L540 1080 Z"/>
+    <path d="M1380 1080 L1410 610 L1460 540 L1510 610 L1580 1080 Z"/>
+    <path d="M1600 1080 L1640 720 L1680 650 L1730 720 L1790 1080 Z"/>
+  </g>
+  <g fill="none" stroke="#a6854f" stroke-width="4" opacity="0.65">
+    <path d="M170 720 L330 720 M395 760 L525 760 M1400 700 L1570 700 M1630 800 L1770 800"/>
+  </g>
+
+  <g transform="translate(830 780)">
+    <path d="M-120 90 L-80 10 L30 -10 L150 25 L230 100 L220 170 L-130 180 Z" fill="#5d3f2b" stroke="#0a0805" stroke-width="10"/>
+    <path d="M-30 10 L40 -55 L130 -25 L170 20 Z" fill="#23301f" stroke="#0a0805" stroke-width="8"/>
+    <circle cx="-60" cy="160" r="40" fill="#12100b" stroke="#0a0805" stroke-width="10"/>
+    <circle cx="170" cy="160" r="40" fill="#12100b" stroke="#0a0805" stroke-width="10"/>
+    <path d="M-200 110 L-90 90 L-70 130 L-210 145 Z" fill="#7a5a36" stroke="#0a0805" stroke-width="7"/>
+  </g>
+
+  <g transform="translate(610 500)">
+    <path d="M-70 120 L-40 20 L40 0 L100 40 L90 130 L-80 130 Z" fill="#b84c2e" stroke="#0a0805" stroke-width="9"/>
+    <path d="M-30 20 L10 -35 L65 -15 L85 20 Z" fill="#25332d" stroke="#0a0805" stroke-width="6"/>
+    <circle cx="-45" cy="125" r="30" fill="#0f0d09" stroke="#0a0805" stroke-width="8"/>
+    <circle cx="65" cy="125" r="30" fill="#0f0d09" stroke="#0a0805" stroke-width="8"/>
+  </g>
+  <g transform="translate(590 610)">
+    <path d="M-20 20 L20 20 L24 46 L-26 46 Z" fill="#6d542b" stroke="#0a0805" stroke-width="5"/>
+    <rect x="-18" y="46" width="40" height="54" fill="#40361f" stroke="#0a0805" stroke-width="5"/>
+    <text x="2" y="84" text-anchor="middle" font-family="Impact, sans-serif" font-size="28" fill="#c8e35d" stroke="none">TOX</text>
+  </g>
+
+  <g fill="#071008" opacity="0.8">
+    <path d="M1180 230 l16 -14 l5 20 l20 -6 l-6 20 l20 3 l-18 12 l12 16 l-21 -7 l-2 21 l-14 -16 l-11 16 l-3 -21 l-20 7 l12 -16 l-19 -12 l21 -3 l-6 -20 z"/>
+  </g>
+  <g stroke="#0a0805" stroke-width="3" opacity="0.55" fill="none">
+    <path d="M90 400 L200 330 L280 410 L390 350"/>
+    <path d="M1550 330 L1660 280 L1740 350 L1850 300"/>
+  </g>
+
+  <rect width="1920" height="1080" fill="url(#hatch)" opacity="0.55"/>
+  <rect width="1920" height="1080" fill="url(#halftone)" opacity="0.3"/>
+  <rect width="1920" height="1080" filter="url(#grain)" opacity="0.6"/>
+  <rect y="760" width="1920" height="320" fill="#060a05" opacity="0.28"/>
+</svg>

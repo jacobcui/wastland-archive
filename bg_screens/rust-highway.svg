@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#151b28"/>
+      <stop offset="0.38" stop-color="#244b51"/>
+      <stop offset="0.68" stop-color="#7e7855"/>
+      <stop offset="1" stop-color="#c18c48"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f4a3c"/>
+      <stop offset="1" stop-color="#17130f"/>
+    </linearGradient>
+    <linearGradient id="car" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b74e2f"/>
+      <stop offset="1" stop-color="#4d1d15"/>
+    </linearGradient>
+    <pattern id="dots" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.4" fill="#0c0906" opacity="0.5"/>
+    </pattern>
+    <pattern id="scratch" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="rotate(12)">
+      <line x1="0" y1="0" x2="0" y2="28" stroke="#0c0906" stroke-width="1.4" opacity="0.3"/>
+    </pattern>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="11" result="n"/>
+      <feColorMatrix in="n" type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.10"/></feComponentTransfer>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <circle cx="1550" cy="260" r="112" fill="#d8d0a5" stroke="#0b0906" stroke-width="10" opacity="0.95"/>
+  <path d="M0 560 L220 470 L400 545 L610 450 L820 540 L1010 465 L1230 550 L1450 475 L1670 550 L1920 470 L1920 690 L0 690 Z" fill="#4b3a2d" stroke="#0b0906" stroke-width="12"/>
+  <path d="M0 640 L250 590 L470 640 L690 575 L900 650 L1140 590 L1370 655 L1600 595 L1830 650 L1920 625 L1920 780 L0 780 Z" fill="#6d4630" stroke="#0b0906" stroke-width="10" opacity="0.9"/>
+
+  <path d="M0 1080 L760 690 L1080 690 L1920 1080 Z" fill="url(#road)" stroke="#0b0906" stroke-width="14"/>
+  <path d="M800 700 L780 1080 M1040 700 L1080 1080" stroke="#d8b35a" stroke-width="10" stroke-dasharray="46 38" opacity="0.8"/>
+  <path d="M400 1080 L820 700 M1450 1080 L1070 700" stroke="#0b0906" stroke-width="5" opacity="0.45" fill="none"/>
+
+  <g transform="translate(1110 600)">
+    <path d="M-120 90 L-80 20 L40 0 L150 30 L220 100 L210 160 L-130 170 Z" fill="url(#car)" stroke="#0b0906" stroke-width="10"/>
+    <path d="M-50 22 L10 -40 L100 -20 L140 25 Z" fill="#2a2520" stroke="#0b0906" stroke-width="8"/>
+    <path d="M5 -28 L45 -15 L30 18 L-20 20 Z M65 -15 L120 5 L105 25 L55 22 Z" fill="#567b7a" stroke="#0b0906" stroke-width="5"/>
+    <circle cx="-70" cy="155" r="42" fill="#14110e" stroke="#0b0906" stroke-width="10"/>
+    <circle cx="160" cy="155" r="42" fill="#14110e" stroke="#0b0906" stroke-width="10"/>
+    <path d="M-220 95 L-100 85 L-80 120 L-230 130 Z" fill="#7a5a36" stroke="#0b0906" stroke-width="8"/>
+    <path d="M-70 60 L150 50" stroke="#0b0906" stroke-width="5" opacity="0.7"/>
+    <path d="M220 100 L260 70 L300 72 L320 120 L250 140 Z" fill="#243c3a" stroke="#0b0906" stroke-width="8"/>
+  </g>
+
+  <g stroke="#0b0906" stroke-width="8" fill="none">
+    <path d="M0 860 L180 760 L240 860 L420 750 L500 850"/>
+    <path d="M1500 870 L1640 760 L1710 850 L1830 780"/>
+  </g>
+  <g fill="#0b0906" stroke="#0b0906" stroke-width="5">
+    <rect x="280" y="500" width="16" height="300" fill="#16100b"/>
+    <rect x="360" y="500" width="16" height="300" fill="#16100b"/>
+    <rect x="270" y="515" width="120" height="16" fill="#16100b"/>
+    <rect x="270" y="565" width="120" height="12" fill="#16100b"/>
+    <path d="M280 500 L360 500 L420 560 L220 560 Z" fill="#8a3d25"/>
+    <path d="M260 620 L440 620 L440 700 L260 700 Z" fill="#a7472b"/>
+    <text x="350" y="665" text-anchor="middle" font-family="Impact, sans-serif" font-size="44" fill="#140d08" stroke="none">SECTOR 04</text>
+  </g>
+
+  <g fill="#0c0906" opacity="0.8">
+    <path d="M100 230 l16 -14 l5 20 l20 -6 l-6 20 l20 3 l-18 12 l12 16 l-21 -7 l-2 21 l-14 -16 l-11 16 l-3 -21 l-20 7 l12 -16 l-19 -12 l21 -3 l-6 -20 z"/>
+    <path d="M340 300 l10 -9 l3 13 l13 -4 l-4 13 l13 2 l-12 8 l8 10 l-14 -4 l-1 14 l-9 -11 l-7 11 l-2 -14 l-13 4 l8 -10 l-12 -8 l14 -2 l-4 -13 z" opacity="0.6"/>
+  </g>
+
+  <rect width="1920" height="1080" fill="url(#dots)" opacity="0.3"/>
+  <rect width="1920" height="1080" fill="url(#scratch)" opacity="0.5"/>
+  <rect width="1920" height="1080" filter="url(#grain)" opacity="0.55"/>
+  <rect y="700" width="1920" height="380" fill="#080605" opacity="0.25"/>
+</svg>

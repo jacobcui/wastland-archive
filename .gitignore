@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+*.log
+.DS_Store
+.run/
+.runtime/
+native-resources/
+release/
+build/icon.iconset/
+.env
+.env.*

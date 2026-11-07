@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>废土馆藏 // WASTELAND ARCHIVE</title>
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="废土馆藏 — 离线优先的插件化本地阅读终端。" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0907'/%3E%3Crect x='2.5' y='2.5' width='27' height='27' fill='none' stroke='%23c2542a' stroke-width='1'/%3E%3Cpath d='M6 9 L13 25 L18 15 L23 25 L30 9' fill='none' stroke='%23ffb000' stroke-width='2.4' stroke-linejoin='bevel'/%3E%3Ccircle cx='27' cy='6' r='1.6' fill='%23c2542a'/%3E%3C/svg%3E"
+    />
+    <style>
+      .boot-file-warning {
+        margin: 48px auto;
+        max-width: 760px;
+        padding: 28px 32px;
+        border: 1px solid #ffb000;
+        background: #15120d;
+        color: #ded4c2;
+        font: 14px/1.9 "SF Mono", ui-monospace, Menlo, monospace;
+      }
+      .boot-file-warning h1 { margin: 0 0 12px; font-size: 22px; color: #ffb000; letter-spacing: 0.08em; }
+      .boot-file-warning code { color: #ffb000; }
+      .boot-file-warning a { color: #9ecb3b; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      if (location.protocol === "file:") {
+        document.addEventListener("DOMContentLoaded", function () {
+          var app = document.getElementById("app");
+          if (!app) return;
+          app.innerHTML =
+            '<div class="boot-file-warning">' +
+            "<h1>不能直接双击打开 dist/index.html</h1>" +
+            "<p>废土馆藏需要本地 Node 服务来提供 API、归档文件和媒体资源。直接以 <code>file://</code> 打开会被浏览器的模块 CORS 拦截，也无法同步 / 读取本地归档。</p>" +
+            "<p>请在项目目录运行 <code>make up</code>（或 <code>npm start</code>），然后访问 <a href=\"http://127.0.0.1:5178\">http://127.0.0.1:5178</a>。</p>" +
+            "<p>复制 <code>dist/</code> 到别的电脑不足以运行完整应用；需要连同 <code>server/</code> 和依赖一起运行。</p>" +
+            "</div>";
+        });
+      }
+    </script>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

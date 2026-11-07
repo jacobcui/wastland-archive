@@ -1,0 +1,30 @@
+[
+  {
+    "file": "wasteland-dunes.svg",
+    "name": "废土沙丘",
+    "nameEn": "Wasteland Dunes",
+    "description": "落日、台地与荒原公路",
+    "descriptionEn": "Sunset, mesas and a wasteland highway"
+  },
+  {
+    "file": "rust-highway.svg",
+    "name": "锈色公路",
+    "nameEn": "Rust Highway",
+    "description": "废弃公路与荒野车骸",
+    "descriptionEn": "Broken highway and wrecked cars"
+  },
+  {
+    "file": "toxic-canyon.svg",
+    "name": "毒沼峡谷",
+    "nameEn": "Toxic Canyon",
+    "description": "酸性河流与黑岩尖塔",
+    "descriptionEn": "Acid river and black rock spires"
+  },
+  {
+    "file": "night-outpost.svg",
+    "name": "夜行哨站",
+    "nameEn": "Night Outpost",
+    "description": "霓虹废土与锈铁营地",
+    "descriptionEn": "Neon wasteland and rusted outpost"
+  }
+]

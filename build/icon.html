@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  html,body { margin:0; width:1024px; height:1024px; overflow:hidden; background:#080706; }
+  .icon {
+    position:relative; width:1024px; height:1024px; overflow:hidden;
+    background:
+      radial-gradient(80% 60% at 25% 10%, rgba(201,88,43,.42), transparent 62%),
+      radial-gradient(60% 60% at 86% 92%, rgba(255,176,0,.18), transparent 66%),
+      linear-gradient(145deg,#1c1410,#090705 68%);
+    border: 22px solid #0a0806;
+  }
+  .grid { position:absolute; inset:0; opacity:.18;
+    background-image:linear-gradient(#d17a3c 1px,transparent 1px),linear-gradient(90deg,#d17a3c 1px,transparent 1px);
+    background-size:64px 64px; }
+  .tape { position:absolute; left:-60px; right:-60px; height:64px; background:repeating-linear-gradient(135deg,#d39519 0 34px,#160f08 34px 68px); opacity:.9; }
+  .tape.top { top:52px; transform:rotate(-4deg); }
+  .tape.bottom { bottom:54px; transform:rotate(3deg); opacity:.55; }
+  .frame { position:absolute; inset:132px; border:6px solid #f2a900; clip-path:polygon(0 0,100% 0,100% 78%,78% 100%,0 100%); }
+  .w { position:absolute; left:50%; top:50%; transform:translate(-50%,-53%);
+    font-family:Impact,"Arial Black",sans-serif; font-size:470px; line-height:1; letter-spacing:-20px;
+    color:#ffb000; text-shadow:18px 18px 0 #090604, 0 0 56px rgba(255,176,0,.22);
+    -webkit-text-stroke:8px #090604; }
+  .dot { position:absolute; right:222px; top:230px; width:72px; height:72px; border-radius:50%; background:#d64d2a; border:8px solid #090604; }
+  .rule { position:absolute; left:262px; right:262px; bottom:222px; height:12px; background:#ffb000; box-shadow:0 12px 0 #090604; }
+  .label { position:absolute; left:0; right:0; bottom:112px; text-align:center; color:#f0d7a6; font-family:"Courier New",monospace; font-size:26px; letter-spacing:12px; text-transform:uppercase; }
+</style></head><body>
+<div class="icon">
+  <div class="grid"></div>
+  <div class="tape top"></div><div class="tape bottom"></div>
+  <div class="frame"></div>
+  <div class="w">W</div><div class="dot"></div><div class="rule"></div>
+  <div class="label">WASTELAND</div>
+</div>
+</body></html>

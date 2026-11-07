@@ -1,0 +1,197 @@
+# 废土馆藏 · Wasteland Archive
+
+**废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
+
+[English](../README.md) | 简体中文
+
+![废土馆藏首页](../docs/home-zh.png)
+
+## 主要特性
+
+- **离线优先**：归档、PDF、图片目录、媒体都保存在本机，不上传第三方云。
+- **插件库**：MKX 杂志档案、PDF 阅读、图片浏览、Media 四个独立插件。停用插件不会删除数据。
+- **原生 macOS App**：双击即用，内置 Node、Chromium、ffmpeg 与 Playwright，不再需要终端或单独 server。
+- **可恢复转码**：原生不支持的视频由本机 ffmpeg 边转 HLS 边播放；切走保留后台会话与播放位置，切回继续。
+- **废土背景**：内置 4 张原创废土风背景，也支持上传自定义图片到 ~/.wasteland_browser/bg_screens。
+- **中英双语**：右上角切换 English / 中文；语言包在 src/i18n/locales。
+
+## 插件
+
+| 插件 | 功能 | 存储 |
+| --- | --- | --- |
+| **MKX 杂志档案** | 同步 mkexue.com 过刊索引、镜像归档、下载与离线阅读；支持翻页、缩放、平移、双页、胶片。 | 服务端 data/issues + 浏览器 IndexedDB 阅读进度 |
+| **PDF 阅读** | 导入本地 PDF，断网重开，记住页码，继续或从头开始。 | IndexedDB wasteland-browser/pdfs |
+| **图片浏览** | 管理多个本地图片目录，按文件名/时间排序，灯箱与键盘翻页。 | IndexedDB 目录句柄 / 会话目录 |
+| **Media** | 本地视频音频、文件夹树播放列表、顺序/循环/单曲/随机、音频可视化、可恢复 HLS 转码与 WASM 兜底。 | IndexedDB 媒体库 + 本地 HLS 缓存 |
+
+### MKX 档案
+
+登录只在 MKX 插件内进行；主菜单不替你登录。密码只保存在浏览器，服务端仅缓存 token 到 data/auth.json（0600）。
+
+### PDF 阅读
+
+![PDF 阅读](../docs/pdf-viewer.png)
+
+### 图片浏览
+
+![图片浏览](../docs/image-browser.png)
+
+### Media
+
+- 优先使用浏览器原生解码。
+- 原生失败时自动由本机 ffmpeg 生成 2 秒 HLS 片段，首段生成即播放。
+- 切到别的媒体再切回来：复用 HLS 会话与已生成片段，并从上次播放位置继续。
+- 音频可视化：波形、频谱条、线状频谱、径向频谱、粒子、山峦。
+- 没有可用 ffmpeg 时，小文件自动退回 WASM 完整转码。
+
+![媒体目录树](../docs/media-folder.png)
+![媒体播放](../docs/media-player.png)
+
+### 粒子可视化
+
+粒子会随实时低 / 中 / 高频段爆开、流动。播放器提供 **全屏** 按钮，进入后隐藏控制条和周边界面，只保留退出按钮与可视化切换；文件信息不再压在画布上，而是放在播放器下方的 **NOW PLAYING** 区域。
+
+示例：本地有声书章节 book1_chapter01.mp3。
+
+![粒子可视化](../docs/media-particles.png)
+![粒子可视化全屏](../docs/media-particles-fullscreen.png)
+
+## 废土背景
+
+内置预设：
+
+- 废土沙丘
+- 锈色公路
+- 毒沼峡谷
+- 夜行哨站
+
+自定义图片保存到：
+
+~~~text
+~/.wasteland_browser/bg_screens
+~~~
+
+点击右上角「背景」即可选择、上传、删除、恢复默认。
+
+![背景选择器](../docs/background-picker-en.png)
+
+## Web 快速开始
+
+只需要 make、curl（或 wget）、tar。Node、npm、ffmpeg、Chromium 由首次启动自动准备。
+
+~~~bash
+make up
+~~~
+
+打开 <http://127.0.0.1:5178>。
+
+make up 会运行 scripts/bootstrap.sh：
+
+1. 检测/下载 Node 22（本地 .runtime/node，不需要 sudo）
+2. 安装 npm 依赖
+3. 安装 ffmpeg-static
+4. 没有 Chrome 时安装 Playwright Chromium
+5. 没有 dist/ 时构建前端
+6. 启动本地 Express 服务
+
+常用命令：
+
+| 命令 | 说明 |
+| --- | --- |
+| make up | 检测环境、安装缺失项、启动 Web 服务 |
+| make bootstrap | 只检测/安装环境 |
+| make status | 查看进程 + 登录状态 |
+| make down | 停止服务 |
+| make package | 生成 Web 便携包 release/wasteland-archive.tar.gz |
+| make app | 生成 macOS 原生 .app + zip + dmg |
+
+## 原生 macOS App
+
+~~~bash
+make app
+~~~
+
+输出（Apple Silicon / arm64）：
+
+~~~text
+release/native/mac-arm64/废土馆藏.app
+release/native/Wasteland-Archive-mac-arm64.zip
+release/native/Wasteland-Archive-mac-arm64.dmg
+~~~
+
+打开 DMG，把 **废土馆藏.app** 拖进 Applications。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
+
+- App 数据：~/Library/Application Support/wasteland-archive
+- 自定义背景：~/.wasteland_browser/bg_screens
+- 未做 Apple notarization；从网络下载后被 Gatekeeper 拦截时，右键 → 打开，或执行：
+  xattr -dr com.apple.quarantine "废土馆藏.app"
+
+![原生 App](../docs/native-app.png)
+
+## 语言包
+
+界面框架与插件元数据在：
+
+~~~text
+src/i18n/locales/en.js
+src/i18n/locales/zh.js
+~~~
+
+新增语言：复制一份 locale，在 src/i18n/index.js 导入，并加入 localeOptions。右上角切换会保存到 localStorage，不强制重启。
+
+## 数据目录
+
+| 内容 | Web | 原生 App |
+| --- | --- | --- |
+| 杂志归档 | data/issues | ~/Library/Application Support/wasteland-archive/data/issues |
+| 登录 token | data/auth.json | 原生 App data 下的 auth.json |
+| PDF / 图片 / 媒体库 | IndexedDB wasteland-browser | 原生 App profile 内的同源 IndexedDB |
+| 自定义背景 | ~/.wasteland_browser/bg_screens | 同一路径，互通 |
+| HLS 临时文件 | data/transcodes（1 小时 TTL） | 原生 App data/transcodes |
+
+把 Web 的杂志搬到原生 App：退出 App，把 Web data/issues 的内容复制到原生 .../data/issues，再重新打开。
+
+## 架构
+
+~~~text
+Vue 3 + Vuetify + Vite
+        │
+        ├─ 插件库 / i18n / 背景
+        │
+        └─ 本地 Express 服务
+             ├─ MKX API + Playwright 同步
+             ├─ 本地归档文件
+             ├─ ffmpeg-static → HLS 切片
+             ├─ PDF.js 资源
+             └─ 背景上传 API
+
+Electron（可选原生壳）
+  用 Electron 自带 Node 启动 Express
+  BrowserWindow 加载同一套 UI
+~~~
+
+- PDF.js 本地渲染，worker 与 CMaps 由本地服务提供。
+- 媒体数据保存在 IndexedDB；不支持的格式分片上传到本机服务。
+- ~/.wasteland_browser/bg_screens 是 App 包外唯一共享的用户目录。
+
+## 浏览器兼容
+
+- 当前 Chrome、Edge、Safari、Firefox。
+- 已用 Chromium、Firefox、WebKit 测试首页、MKX、PDF、图片和媒体基础流程。
+- 图片目录持久句柄依赖 File System Access API（Chromium）；Safari/Firefox 使用兼容目录选择，标记为「临时」。
+- 媒体编码支持取决于浏览器；右侧支持矩阵会显示原生 / 可尝试 / 需转码。
+
+## 隐私
+
+- 主菜单不询问账号。
+- MKX 密码只在本机浏览器；服务端只保存 token。
+- 本地媒体和归档不出本机；HLS 转码服务只监听 127.0.0.1。
+- data/、.runtime/、node_modules/、release/、native resources 都被 git 忽略。
+
+## 声明
+
+废土馆藏是独立的本地阅读工具，不隶属于 Gearbox Software、2K Games 或 Borderlands 系列。背景为原创矢量插画，仅借鉴废土漫画风格。
+
+---
+
+仓库：<https://github.com/jacobcui/wastland-archive>

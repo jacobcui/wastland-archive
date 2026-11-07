@@ -1,0 +1,203 @@
+# Wasteland Archive · 废土馆藏
+
+**Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
+
+English | [简体中文](langs/README.zh-CN.md)
+
+![Wasteland Archive home](docs/home-en.png)
+
+## Highlights
+
+- **Offline-first.** Archives, PDFs, image folders and media live on this machine. Nothing is uploaded to a third-party cloud.
+- **Plugin deck.** Four independent plugins: MKX magazine archive, PDF reader, image browser and media player. Disabling a plugin never deletes its data.
+- **Native macOS app.** A double-clickable Electron app is included. No terminal, Node or separate server is required after installation.
+- **Resumable media.** Unsupported videos are transcoded on the fly into HLS segments by a local ffmpeg process. Switching away keeps the backend session alive and resumes from the saved position.
+- **Wasteland screens.** Original cel-shaded / ink-outline backgrounds ship with the app. Users can upload their own backgrounds to `~/.wasteland_browser/bg_screens`.
+- **Bilingual UI.** Switch between English and 简体中文 from the top bar. Language packs live in `src/i18n/locales`.
+
+## Plugins
+
+| Plugin | What it does | Storage |
+| --- | --- | --- |
+| **MKX Magazine Archive** | Sync the mkexue.com back-issue index, mirror issues, download and read offline with page turning, zoom, pan, spread and filmstrip modes. | Server `data/issues` + browser IndexedDB for reading progress |
+| **PDF Reader** | Import local PDFs, reopen offline, remember the last page, continue or start over. | Browser IndexedDB `wasteland-browser/pdfs` |
+| **Image Browser** | Manage multiple local image folders, sort by name/time, lightbox and keyboard paging. | IndexedDB directory handles / session folders |
+| **Media** | Local video/audio playback, folder trees, playlists, shuffle/loop modes, audio visualizers, resumable HLS transcoding and a WASM fallback. | IndexedDB media library + local HLS cache |
+
+### MKX archive
+
+Log in inside the MKX plugin only. The main menu never signs in for you. Passwords stay in the browser; the server only caches a token in `data/auth.json` (mode 0600).
+
+### PDF reader
+
+![PDF reader](docs/pdf-viewer.png)
+
+### Image browser
+
+![Image browser](docs/image-browser.png)
+
+### Media
+
+- Native playback first.
+- On failure: local ffmpeg produces 2-second HLS segments and playback starts with the first segment.
+- Leave the player and return: the HLS session and playback position are reused. No re-upload, no restart from zero.
+- Audio visualizers: waveform, spectrum bars, line spectrum, radial spectrum, particles and terrain.
+- Built-in WASM fallback for smaller files when ffmpeg is unavailable.
+
+![Media folder tree](docs/media-folder.png)
+![Media player](docs/media-player.png)
+
+### Particle visualizer
+
+The particle field reacts to the live low / mid / high frequency bands. **Full screen** hides the controls and surrounding UI so the visualization fills the display; an exit button and the visual selector stay available. File metadata is no longer drawn over the canvas — it stays in the **Now Playing** strip below the player.
+
+Example: local audiobook chapter `book1_chapter01.mp3`.
+
+![Particle visualizer](docs/media-particles.png)
+![Particle visualizer fullscreen](docs/media-particles-fullscreen.png)
+
+## Wasteland backgrounds
+
+Choose from four bundled original backgrounds or upload your own:
+
+- Wasteland Dunes
+- Rust Highway
+- Toxic Canyon
+- Night Outpost
+
+Custom images are stored locally in:
+
+```text
+~/.wasteland_browser/bg_screens
+```
+
+![Background picker](docs/background-picker-en.png)
+
+## Quick start — Web
+
+Requirements: `make`, `curl` (or `wget`) and `tar`. Node, npm, ffmpeg and Chromium are installed automatically on first run.
+
+```bash
+make up
+```
+
+Open <http://127.0.0.1:5178>.
+
+`make up` runs `scripts/bootstrap.sh`, which:
+
+1. finds or downloads Node 22 (local `.runtime/node`, no sudo);
+2. installs npm dependencies;
+3. installs `ffmpeg-static`;
+4. installs Playwright Chromium when no Chrome/Chromium is present;
+5. builds `dist/` if missing;
+6. starts the local Express server.
+
+Useful commands:
+
+| Command | Result |
+| --- | --- |
+| `make up` | Detect environment, install missing pieces, start the web server |
+| `make bootstrap` | Environment check/install only |
+| `make status` | Process + login status |
+| `make down` | Stop the server |
+| `make package` | Portable web package → `release/wasteland-archive.tar.gz` |
+| `make app` | Native macOS app → `.app` + zip + dmg |
+
+## Native macOS app
+
+```bash
+make app
+```
+
+Outputs (Apple Silicon / arm64):
+
+```text
+release/native/mac-arm64/废土馆藏.app
+release/native/Wasteland-Archive-mac-arm64.zip
+release/native/Wasteland-Archive-mac-arm64.dmg
+```
+
+Open the DMG and drag **废土馆藏.app** to Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
+
+- App data: `~/Library/Application Support/wasteland-archive`
+- Custom backgrounds: `~/.wasteland_browser/bg_screens`
+- The app is ad-hoc signed, not notarized. If Gatekeeper blocks a downloaded copy, right-click → Open, or run:
+  `xattr -dr com.apple.quarantine "废土馆藏.app"`
+
+![Native app](docs/native-app.png)
+
+## Language packs
+
+The UI chrome and plugin metadata are translated through `src/i18n/locales/en.js` and `zh.js`. Add another language by copying a locale file, importing it in `src/i18n/index.js`, and adding it to `localeOptions`.
+
+The top bar language switch persists the choice in localStorage. A reload is optional, not required.
+
+## Data locations
+
+| What | Web | Native app |
+| --- | --- | --- |
+| Magazine archive | `data/issues` | `~/Library/Application Support/wasteland-archive/data/issues` |
+| Auth token | `data/auth.json` | same under native app data |
+| Browser media/PDF/image libraries | IndexedDB `wasteland-browser` | same IndexedDB, app profile |
+| Custom backgrounds | `~/.wasteland_browser/bg_screens` | shared with the same path |
+| HLS temp files | `data/transcodes` (1h TTL) | native app data/transcodes |
+
+To move magazines into the native app, quit the app, copy the contents of your web `data/issues` into the native `.../data/issues`, and reopen the app.
+
+## Architecture
+
+```text
+Vue 3 + Vuetify + Vite
+        │
+        ├─ plugin deck / i18n / backgrounds
+        │
+        └─ local Express server
+             ├─ MKX API + Playwright sync
+             ├─ local archive files
+             ├─ ffmpeg-static → HLS segments
+             ├─ PDF.js vendor assets
+             └─ background upload API
+
+Electron (optional native shell)
+  spawns the Express server with Electron's Node
+  loads the same UI in a BrowserWindow
+```
+
+- PDF.js renders PDFs locally; worker and CMaps are served by the local server.
+- Media is stored in IndexedDB; unsupported files are chunk-uploaded to the local only server.
+- `~/.wasteland_browser/bg_screens` is the only shared user directory outside the app bundle.
+
+## Browser support
+
+- Current Chrome, Edge, Safari and Firefox.
+- Tested with Chromium, Firefox and WebKit for home, MKX, PDF, images and media basics.
+- Persistent image-folder handles use the File System Access API (Chromium). Safari/Firefox use a compatible folder picker and mark session folders as temporary.
+- Media codecs depend on the browser; the support matrix reports native / maybe / needs transcode at runtime.
+
+## Project layout
+
+```text
+electron/        Electron main process and native data migration
+server/          Express API, archive store, HLS transcoding, backgrounds
+src/             Vue 3 app, plugins, i18n, stores
+bg_screens/      Bundled backgrounds + manifest
+build/           App icon assets
+scripts/         Bootstrap, native packaging helpers
+docs/            Screenshots used by this README
+langs/           Translated READMEs
+```
+
+## Privacy
+
+- The main menu never asks for an account.
+- MKX credentials stay in the browser; the server caches only a token.
+- Local media and archives stay on this machine. The HLS transcoder listens only on `127.0.0.1`.
+- `data/`, `.runtime/`, `node_modules/`, `release/` and native resources are ignored by git.
+
+## Disclaimer
+
+Wasteland Archive is an independent local reader. It is not affiliated with Gearbox Software, 2K Games or the Borderlands franchise. Background artwork is original vector art inspired by cel-shaded wasteland aesthetics.
+
+---
+
+Repository: <https://github.com/jacobcui/wastland-archive>
