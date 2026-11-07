@@ -26,5 +26,54 @@
     "nameEn": "Night Outpost",
     "description": "霓虹废土与锈铁营地",
     "descriptionEn": "Neon wasteland and rusted outpost"
+  },
+  {
+    "file": "rust-pump.webp",
+    "name": "锈色加油站",
+    "nameEn": "Rust Pump",
+    "description": "赤色天空下的废弃加油站与吊车",
+    "descriptionEn": "Abandoned fuel stop and crane under a crimson sky"
+  },
+  {
+    "file": "desert-relay.webp",
+    "name": "荒漠中继站",
+    "nameEn": "Desert Relay",
+    "description": "断裂高架下的铁路驿站与改装车队",
+    "descriptionEn": "Rail outpost and convoy beneath a broken overpass"
+  },
+  {
+    "file": "dome-mall.webp",
+    "name": "穹顶商场",
+    "nameEn": "Dome Mall",
+    "description": "雷暴与沙丘中的废弃穹顶商场",
+    "descriptionEn": "Ruined dome mall in a lightning storm"
+  },
+  {
+    "file": "archive-vault.webp",
+    "name": "档案地库",
+    "nameEn": "Archive Vault",
+    "description": "服务器与书架之间的地库档案室",
+    "descriptionEn": "Underground archive between servers and shelves"
+  },
+  {
+    "file": "book-dome.webp",
+    "name": "书穹",
+    "nameEn": "Book Dome",
+    "description": "沙丘中的圆顶图书馆与六轮越野车",
+    "descriptionEn": "Dome library and six-wheel truck in the dunes"
+  },
+  {
+    "file": "night-rail.webp",
+    "name": "夜行列车",
+    "nameEn": "Night Rail",
+    "description": "紫色雷暴下的列车档案车厢",
+    "descriptionEn": "Archive train carriage under a purple lightning sky"
+  },
+  {
+    "file": "sky-library.webp",
+    "name": "天空图书馆",
+    "nameEn": "Sky Library",
+    "description": "悬空图书馆与落日云海",
+    "descriptionEn": "Sky library above a sunset cloud sea"
   }
 ]

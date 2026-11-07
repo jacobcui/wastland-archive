@@ -66,12 +66,19 @@ Example: local audiobook chapter `book1_chapter01.mp3`.
 
 ## Wasteland backgrounds
 
-Backgrounds apply to the home page **and every plugin page**. Choose from four bundled original backgrounds, upload your own, or select **No background image** to keep only the dark terminal backdrop:
+Backgrounds apply to the home page **and every plugin page**. Choose from eleven bundled illustrated backgrounds, upload your own, or select **No background image** to keep only the dark terminal backdrop:
 
 - Wasteland Dunes
 - Rust Highway
 - Toxic Canyon
 - Night Outpost
+- Rust Pump
+- Desert Relay
+- Dome Mall
+- Archive Vault
+- Book Dome
+- Night Rail
+- Sky Library
 
 Custom images are stored locally in:
 
@@ -80,6 +87,7 @@ Custom images are stored locally in:
 ```
 
 ![Background picker](docs/background-picker-en.png)
+![Rust Pump background](docs/background-rust-pump.png)
 
 ![Background on an inner PDF page](docs/background-inner-pdf.png)
 ![No background option](docs/background-none.png)
