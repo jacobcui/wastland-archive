@@ -1,6 +1,6 @@
 <script setup>
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from "vue";
-import { idbDelete, idbGet, idbGetAll, idbPut } from "@/lib/idb";
+import { idbDelete, idbGet, idbGetAll, idbPut, idbPutMany } from "@/lib/idb";
 import { formatBytes } from "@/lib/format";
 import { goHome } from "@/lib/navigation";
 import { transcodeMedia } from "@/lib/media-decoder";
@@ -73,23 +73,66 @@ const playerRef = ref(null);
 const pendingAutoplay = ref(false);
 const decodedCache = new Map();
 const fileCache = new Map();
-let mediaBlobSupport = null;
 
-async function canStoreMediaBlobs() {
-  if (mediaBlobSupport !== null) return mediaBlobSupport;
-  const probeId = "__probe__" + uid();
-  try {
-    await idbPut("media", { id: probeId, blob: new Blob(["probe"]) }, probeId);
-    await idbDelete("media", probeId);
-    mediaBlobSupport = true;
-  } catch {
-    mediaBlobSupport = false;
-  }
-  return mediaBlobSupport;
+const POSITION_KEY = "wasteland.media.positions.v1";
+let resumePositions = {};
+try { resumePositions = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}") || {}; } catch {}
+
+function writeResumePositions() {
+  try { localStorage.setItem(POSITION_KEY, JSON.stringify(resumePositions)); } catch {}
 }
+
+function resumePosition(row) {
+  if (!row) return 0;
+  const recorded = resumePositions[row.id];
+  const raw = recorded && Number.isFinite(recorded.position) ? recorded.position : Number(row.position) || 0;
+  const duration = Number(recorded && recorded.duration) || Number(row.duration) || 0;
+  if (duration > 0 && raw >= duration - 1.5) return 0;
+  return Math.max(0, raw);
+}
+
+function rememberPosition(row, position) {
+  if (!row) return;
+  const pos = Math.max(0, Number(position) || 0);
+  const duration = Number(player.duration) || Number(row.duration) || 0;
+  resumePositions[row.id] = { position: duration > 0 && pos >= duration - 1.5 ? 0 : pos, duration, updatedAt: Date.now() };
+  row.position = resumePositions[row.id].position;
+  writeResumePositions();
+}
+
+function forgetPosition(row) {
+  if (!row) return;
+  delete resumePositions[row.id];
+  row.position = 0;
+  writeResumePositions();
+}
+
 const visualizerRef = ref(null);
 const visualStageRef = ref(null);
 const visualFullscreen = ref(false);
+const fsTopVisible = ref(false);
+const fsBottomVisible = ref(false);
+let fsTopTimer = null;
+let fsBottomTimer = null;
+
+function showFsTop() {
+  fsTopVisible.value = true;
+  clearTimeout(fsTopTimer);
+  fsTopTimer = setTimeout(() => { fsTopVisible.value = false; }, 2800);
+}
+
+function showFsBottom() {
+  fsBottomVisible.value = true;
+  clearTimeout(fsBottomTimer);
+  fsBottomTimer = setTimeout(() => { fsBottomVisible.value = false; }, 2800);
+}
+
+function onVisualPointer(event) {
+  if (!visualFullscreen.value) return;
+  const y = event.clientY;
+  if (y < 150) showFsTop();
+  if (y > window.innerHeight - 170) showFsBottom();
+}
 const PLAY_MODES = [
   { value: "continue", label: "顺序" },
   { value: "loop", label: "列表循环" },
@@ -214,12 +257,14 @@ let visualPhase = 0;
 let freqData = new Uint8Array(1024);
 let waveData = new Uint8Array(2048);
 
-const particles = Array.from({ length: 110 }, () => ({
+const particles = Array.from({ length: 220 }, () => ({
   angle: Math.random() * Math.PI * 2,
-  radius: 24 + Math.random() * 180,
-  speed: 0.25 + Math.random() * 0.9,
-  spin: (Math.random() - 0.5) * 0.012,
+  radius: 14 + Math.random() * 280,
+  speed: 0.35 + Math.random() * 1.35,
+  spin: (Math.random() - 0.5) * 0.018,
   band: Math.random(),
+  prevX: null,
+  prevY: null,
 }));
 
 function ensureAudioGraph() {
@@ -267,12 +312,23 @@ async function toggleVisualFullscreen() {
     else if (el.msRequestFullscreen) el.msRequestFullscreen();
     else return;
     visualFullscreen.value = true;
+    showFsTop();
+    showFsBottom();
   } catch {}
 }
 
 function onVisualFullscreenChange() {
   const el = visualStageRef.value;
   visualFullscreen.value = Boolean(el && (document.fullscreenElement === el || document.webkitFullscreenElement === el));
+  clearTimeout(fsTopTimer);
+  clearTimeout(fsBottomTimer);
+  if (visualFullscreen.value) {
+    showFsTop();
+    showFsBottom();
+  } else {
+    fsTopVisible.value = false;
+    fsBottomVisible.value = false;
+  }
 }
 
 function startVisualizer() {
@@ -447,27 +503,62 @@ function drawVisual() {
   if (visualMode.value === "particles") {
     const cx = width / 2;
     const cy = height / 2;
-    const maxR = Math.min(width, height) * 0.45;
+    const maxR = Math.min(width, height) * 0.47;
     const bass = freq.slice(0, 18).reduce((sum, value) => sum + value, 0) / 18 / 255;
     const mid = freq.slice(18, 90).reduce((sum, value) => sum + value, 0) / 72 / 255;
+    const treble = freq.slice(90, 220).reduce((sum, value) => sum + value, 0) / 130 / 255;
     ctx.save();
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 1.35);
+    glow.addColorStop(0, "rgba(110, 168, 254, " + (0.05 + bass * 0.16) + ")");
+    glow.addColorStop(0.5, "rgba(194, 84, 42, " + (0.025 + mid * 0.06) + ")");
+    glow.addColorStop(1, "rgba(7, 6, 5, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "lighter";
     for (const particle of particles) {
       const value = freq[Math.floor(particle.band * freq.length)] / 255;
-      particle.radius += particle.speed * (0.3 + value * 2.8);
-      particle.angle += particle.spin + 0.002 * (1 + mid);
+      particle.radius += particle.speed * (0.35 + value * 4.2 + bass * 1.4);
+      particle.angle += particle.spin + 0.002 * (1 + mid) + treble * 0.002;
       if (particle.radius > maxR) {
-        particle.radius = 10 + Math.random() * 20;
+        particle.radius = 8 + Math.random() * 22;
         particle.angle = Math.random() * Math.PI * 2;
         particle.band = Math.random();
+        particle.prevX = null;
+        particle.prevY = null;
       }
       const x = cx + Math.cos(particle.angle) * particle.radius;
-      const y = cy + Math.sin(particle.angle) * particle.radius * 0.72;
-      const size = 1 + value * 3 + bass * 2;
-      ctx.globalAlpha = 0.25 + value * 0.75;
-      ctx.fillStyle = particle.band > 0.6 ? amber : particle.band > 0.3 ? blue : tox;
+      const y = cy + Math.sin(particle.angle) * particle.radius * 0.68;
+      const size = 1 + value * 3.4 + bass * 2.4;
+      const color = particle.band > 0.68 ? amber : particle.band > 0.34 ? blue : tox;
+      if (particle.prevX !== null) {
+        ctx.globalAlpha = 0.05 + value * 0.34;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(0.6, size * 0.55);
+        ctx.beginPath();
+        ctx.moveTo(particle.prevX, particle.prevY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.3 + value * 0.7;
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8 + bass * 10;
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fill();
+      particle.prevX = x;
+      particle.prevY = y;
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = "source-over";
+    for (let ring = 0; ring < 3; ring += 1) {
+      const radius = maxR * (0.28 + ring * 0.22) + bass * maxR * 0.12;
+      ctx.globalAlpha = 0.06 + bass * 0.14 - ring * 0.012;
+      ctx.strokeStyle = ring === 1 ? amber : blue;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.restore();
     return;
@@ -609,6 +700,11 @@ function applyPendingSeek(el) {
   const target = pendingSeek.value;
   if (!el || !target) return;
   const max = streamMode.value ? streamDuration(el) : knownDuration(el);
+  if (max > 0.5 && target >= max - 1.5) {
+    pendingSeek.value = 0;
+    try { el.currentTime = 0; } catch {}
+    return;
+  }
   if (max > 0.5 && target > max) {
     if (!streamMode.value) {
       try { el.currentTime = Math.max(0, max - 0.5); } catch {}
@@ -755,12 +851,18 @@ function dropStreaming() {
   detachStreaming({ keepSession: false });
 }
 
-function stopCurrent() {
+function saveActivePosition() {
   const el = mediaEl();
-  if (el && active.value) {
-    active.value.position = Number.isFinite(el.currentTime) ? el.currentTime : 0;
-    persist(active.value);
-  }
+  if (!el || !active.value) return;
+  const position = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+  active.value.position = position;
+  rememberPosition(active.value, position);
+  persist(active.value);
+}
+
+function stopCurrent() {
+  saveActivePosition();
+  const el = mediaEl();
   detachStreaming({ keepSession: true });
   if (el) {
     try {
@@ -783,6 +885,41 @@ function stopCurrent() {
   pendingSeek.value = 0;
 }
 
+async function ensureReadPermission(handle) {
+  if (!handle) return false;
+  try {
+    if (handle.queryPermission) {
+      const state = await handle.queryPermission({ mode: "read" });
+      if (state === "granted") return true;
+      if (handle.requestPermission) return (await handle.requestPermission({ mode: "read" })) === "granted";
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveStoredSource(row) {
+  if (!row) return null;
+  if (row.fileHandle && typeof row.fileHandle.getFile === "function") {
+    if (!(await ensureReadPermission(row.fileHandle))) return null;
+    return row.fileHandle.getFile();
+  }
+  if (row.folderId) {
+    const folder = folders.value.find((item) => item.id === row.folderId);
+    if (!folder || !folder.handle) return null;
+    if (!(await ensureReadPermission(folder.handle))) return null;
+    const parts = String(row.relativePath || row.name || "").split("/").filter(Boolean);
+    if (!parts.length) return null;
+    let dir = folder.handle;
+    for (let i = 0; i < parts.length - 1; i += 1) dir = await dir.getDirectoryHandle(parts[i]);
+    const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
+    return fileHandle.getFile();
+  }
+  return null;
+}
+
 async function openMedia(row, { autoplay = false } = {}) {
   if (!row) return;
   stopCurrent();
@@ -790,7 +927,7 @@ async function openMedia(row, { autoplay = false } = {}) {
   playRequested = autoplay;
   active.value = row;
   pendingAutoplay.value = autoplay;
-  pendingSeek.value = Math.max(0, Number(row.position) || 0);
+  pendingSeek.value = resumePosition(row);
   lastPositionSave = 0;
   player.error = null;
   player.loading = true;
@@ -801,6 +938,10 @@ async function openMedia(row, { autoplay = false } = {}) {
   const sourceFile = fileCache.get(row.id) || null;
   const type = cached ? cached.type : row.type || mimeOf({ name: row.name, type: row.type });
   let source = cached || sourceFile || row.data || row.blob || null;
+  if (!source) {
+    source = await resolveStoredSource(row);
+    if (source) fileCache.set(row.id, source);
+  }
   const sourceBytes = source ? source.size || source.byteLength || 0 : 0;
   if (row.kind === "video" && sourceBytes > 200 * 1024 * 1024) {
     player.error = null;
@@ -824,7 +965,9 @@ async function openMedia(row, { autoplay = false } = {}) {
   } else {
     pendingAutoplay.value = false;
     player.loading = false;
-    player.error = "媒体数据缺失，请重新导入。";
+    player.error = row.folderId
+      ? "无法访问原文件夹，请重新选择该文件夹以恢复读取权限。"
+      : "浏览器不会复制媒体文件；请重新选择该文件，或改用“添加文件夹”保留持久访问。";
     return;
   }
   await nextTick();
@@ -854,39 +997,38 @@ async function refresh() {
   }
 }
 
-async function importFiles(fileList) {
-  const files = [...(fileList || [])].filter(isMediaFile);
-  if (!files.length) {
-    notify("没有发现可播放的音频 / 视频文件", "info");
-    return;
-  }
+function fileRow(file, extra = {}) {
+  const mime = mimeOf(file);
+  const kind = kindOf(file, mime);
+  if (!kind) return null;
+  return {
+    id: uid(),
+    name: file.name,
+    size: file.size,
+    type: mime || (kind === "audio" ? "audio/" + extOf(file.name) : "video/" + extOf(file.name)),
+    kind,
+    addedAt: Date.now(),
+    lastPlayedAt: 0,
+    duration: 0,
+    lastModified: file.lastModified || 0,
+    ...extra,
+  };
+}
+
+async function importFileHandles(handles) {
   importing.value = true;
-  let added = 0;
-  const storeBlobs = await canStoreMediaBlobs();
   try {
-    for (const file of files) {
-      const mime = mimeOf(file);
-      const kind = kindOf(file, mime);
-      if (!kind) continue;
-      const row = {
-        id: uid(),
-        name: file.name,
-        size: file.size,
-        type: mime || (kind === "audio" ? "audio/" + extOf(file.name) : "video/" + extOf(file.name)),
-        kind,
-        addedAt: Date.now(),
-        lastPlayedAt: 0,
-        duration: 0,
-        lastModified: file.lastModified || 0,
-      };
-      if (storeBlobs) row.blob = file;
-      else row.data = await file.arrayBuffer();
-      await idbPut("media", row);
+    const rows = [];
+    for (const handle of handles || []) {
+      const file = await handle.getFile();
+      const row = fileRow(file, { fileHandle: markRaw(handle) });
+      if (!row) continue;
+      rows.push(row);
       fileCache.set(row.id, file);
-      added += 1;
     }
+    if (rows.length) await idbPutMany("media", rows);
     await refresh();
-    notify("已导入 " + added + " 个媒体文件", "success");
+    notify("已添加 " + rows.length + " 个媒体文件（保留在原目录）", "success");
   } catch (error) {
     notify("导入失败: " + error.message, "error");
   } finally {
@@ -894,7 +1036,41 @@ async function importFiles(fileList) {
   }
 }
 
-function pickFile() {
+async function importFiles(fileList) {
+  const files = [...(fileList || [])].filter(isMediaFile);
+  if (!files.length) {
+    notify("没有发现可播放的音频 / 视频文件", "info");
+    return;
+  }
+  importing.value = true;
+  try {
+    const rows = [];
+    for (const file of files) {
+      const row = fileRow(file, { temporary: true });
+      if (!row) continue;
+      rows.push(row);
+      fileCache.set(row.id, file);
+    }
+    if (rows.length) await idbPutMany("media", rows);
+    await refresh();
+    notify("已添加 " + rows.length + " 个媒体文件；未复制原文件。刷新页面后如无法访问，请重新选择目录。", "info");
+  } catch (error) {
+    notify("导入失败: " + error.message, "error");
+  } finally {
+    importing.value = false;
+  }
+}
+
+async function pickFile() {
+  if (typeof window.showOpenFilePicker === "function") {
+    try {
+      const handles = await window.showOpenFilePicker({ multiple: true });
+      await importFileHandles(handles);
+      return;
+    } catch (error) {
+      if (error && error.name === "AbortError") return;
+    }
+  }
   if (fileInput.value) fileInput.value.click();
 }
 
@@ -936,46 +1112,31 @@ async function importFolderEntries(name, entries, source, handle = null) {
     source: source || "input",
     addedAt: Date.now(),
     lastScannedAt: Date.now(),
+    temporary: !handle,
   };
   if (handle) folder.handle = markRaw(handle);
   importing.value = true;
   folderImporting.value = true;
   folderStatus.value = "准备导入 " + accepted.length + " 个媒体文件…";
-  let added = 0;
-  const storeBlobs = await canStoreMediaBlobs();
   try {
     await idbPut("mediaFolders", toRaw(folder), folder.id);
     folders.value.push(folder);
+    const rows = [];
     for (const entry of accepted) {
       const file = entry.file;
-      const mime = mimeOf(file);
-      const kind = kindOf(file, mime);
-      if (!kind) continue;
       const path = entry.path || file.webkitRelativePath || file.name;
       const prefix = name + "/";
       const relativePath = path.startsWith(prefix) ? path.slice(prefix.length) : path;
-      const row = {
-        id: uid(),
-        name: file.name,
-        relativePath,
-        folderId: folder.id,
-        size: file.size,
-        type: mime || (kind === "audio" ? "audio/" + extOf(file.name) : "video/" + extOf(file.name)),
-        kind,
-        addedAt: Date.now(),
-        lastPlayedAt: 0,
-        duration: 0,
-        lastModified: file.lastModified || 0,
-      };
-      if (storeBlobs) row.blob = file;
-      else row.data = await file.arrayBuffer();
-      await idbPut("media", row);
+      const row = fileRow(file, { relativePath, folderId: folder.id });
+      if (!row) continue;
+      rows.push(row);
       fileCache.set(row.id, file);
-      added += 1;
-      folderStatus.value = "导入 " + added + " / " + accepted.length + " …";
+      if (rows.length % 25 === 0) folderStatus.value = "读取索引 " + rows.length + " / " + accepted.length + " …";
     }
+    await idbPutMany("media", rows);
+    folderStatus.value = "载入媒体库 …";
     await refresh();
-    notify("已添加文件夹 · " + folder.name + " · " + added + " 个媒体", "success");
+    notify("已添加文件夹 · " + folder.name + " · " + rows.length + " 个媒体（文件保留在原目录）", "success");
   } catch (error) {
     notify("文件夹导入中断: " + error.message, "error");
   } finally {
@@ -1076,7 +1237,7 @@ async function reconcileFolder(folder, entries, rootPrefix = "") {
   const existing = media.value.filter((row) => row.folderId === folder.id);
   const existingByPath = new Map(existing.map((row) => [row.relativePath || row.name, row]));
   const seen = new Set();
-  const storeBlobs = await canStoreMediaBlobs();
+  const putRows = [];
   let added = 0;
   let updated = 0;
   let removed = 0;
@@ -1084,44 +1245,24 @@ async function reconcileFolder(folder, entries, rootPrefix = "") {
     const file = entry.file;
     const relativePath = entryRelativePath(entry, rootPrefix);
     if (!relativePath) continue;
-    const mime = mimeOf(file);
-    const kind = kindOf(file, mime);
-    if (!kind) continue;
     seen.add(relativePath);
     const old = existingByPath.get(relativePath);
     if (!old) {
-      const row = {
-        id: uid(),
-        name: file.name,
-        relativePath,
-        folderId: folder.id,
-        size: file.size,
-        type: mime || (kind === "audio" ? "audio/" + extOf(file.name) : "video/" + extOf(file.name)),
-        kind,
-        addedAt: Date.now(),
-        lastPlayedAt: 0,
-        duration: 0,
-        lastModified: file.lastModified || 0,
-      };
-      if (storeBlobs) row.blob = file;
-      else row.data = await file.arrayBuffer();
-      await idbPut("media", row);
+      const row = fileRow(file, { relativePath, folderId: folder.id });
+      if (!row) continue;
+      putRows.push(row);
       fileCache.set(row.id, file);
       added += 1;
     } else if (old.size !== file.size || (old.lastModified || 0) !== (file.lastModified || 0)) {
       old.name = file.name;
       old.size = file.size;
-      old.type = mime || old.type;
-      old.kind = kind;
+      old.type = mimeOf(file) || old.type;
+      old.kind = kindOf(file, mimeOf(file));
       old.lastModified = file.lastModified || 0;
-      old.position = 0;
-      if (storeBlobs) {
-        old.blob = file;
-        delete old.data;
-      } else {
-        old.data = await file.arrayBuffer();
-        delete old.blob;
-      }
+      delete old.blob;
+      delete old.data;
+      delete old.temporary;
+      forgetPosition(old);
       decodedCache.delete(old.id);
       fileCache.set(old.id, file);
       await dropMediaTranscode(old.id);
@@ -1129,10 +1270,11 @@ async function reconcileFolder(folder, entries, rootPrefix = "") {
         stopCurrent();
         active.value = null;
       }
-      await idbPut("media", toRaw(old), old.id);
+      putRows.push(toRaw(old));
       updated += 1;
     }
   }
+  if (putRows.length) await idbPutMany("media", putRows);
   for (const old of existing) {
     if (seen.has(old.relativePath || old.name)) continue;
     if (active.value && active.value.id === old.id) {
@@ -1141,11 +1283,13 @@ async function reconcileFolder(folder, entries, rootPrefix = "") {
     }
     decodedCache.delete(old.id);
     fileCache.delete(old.id);
+    forgetPosition(old);
     await dropMediaTranscode(old.id);
     await idbDelete("media", old.id);
     removed += 1;
   }
   folder.lastScannedAt = Date.now();
+  folder.temporary = false;
   await idbPut("mediaFolders", toRaw(folder), folder.id);
   await refresh();
   notify("重扫完成 · " + folder.name + " · 新增 " + added + " / 更新 " + updated + " / 移除 " + removed, "success");
@@ -1232,8 +1376,9 @@ function onTimeUpdate(event) {
   player.currentTime = el.currentTime;
   if (active.value) {
     active.value.position = el.currentTime;
-    if (Date.now() - lastPositionSave > 5000) {
+    if (Date.now() - lastPositionSave > 1000) {
       lastPositionSave = Date.now();
+      rememberPosition(active.value, el.currentTime);
       persist(active.value);
     }
   }
@@ -1276,6 +1421,7 @@ function onPause(event) {
   const el = mediaEl();
   if (el && active.value) {
     active.value.position = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+    rememberPosition(active.value, active.value.position);
     persist(active.value);
   }
 }
@@ -1330,7 +1476,7 @@ function onEnded(event) {
   player.playing = false;
   player.currentTime = player.duration;
   if (active.value) {
-    active.value.position = 0;
+    forgetPosition(active.value);
     persist(active.value);
   }
   nextMedia({ auto: true });
@@ -1724,6 +1870,7 @@ async function removeMedia(row) {
   try {
     decodedCache.delete(row.id);
     fileCache.delete(row.id);
+    forgetPosition(row);
     await dropMediaTranscode(row.id);
     await idbDelete("media", row.id);
     await refresh();
@@ -1767,8 +1914,12 @@ function onKey(event) {
   }
 }
 
+const saveBeforeUnload = () => saveActivePosition();
+
 onMounted(() => {
   window.addEventListener("keydown", onKey);
+  window.addEventListener("beforeunload", saveBeforeUnload);
+  window.addEventListener("pagehide", saveBeforeUnload);
   document.addEventListener("fullscreenchange", onVisualFullscreenChange);
   document.addEventListener("webkitfullscreenchange", onVisualFullscreenChange);
   refresh();
@@ -1776,9 +1927,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
+  window.removeEventListener("beforeunload", saveBeforeUnload);
+  window.removeEventListener("pagehide", saveBeforeUnload);
   document.removeEventListener("fullscreenchange", onVisualFullscreenChange);
   document.removeEventListener("webkitfullscreenchange", onVisualFullscreenChange);
   if (visualFullscreen.value && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  clearTimeout(fsTopTimer);
+  clearTimeout(fsBottomTimer);
   clearTimeout(removeTimer);
   clearTimeout(folderRemoveTimer);
   if (persistTimer) clearTimeout(persistTimer);
@@ -1859,9 +2014,15 @@ onBeforeUnmount(() => {
                 @error="onMediaError"
                 @click="togglePlay"
               ></video>
-              <div v-else ref="visualStageRef" class="media-audio" :class="{ 'is-playing': player.playing, 'is-fullscreen': visualFullscreen }">
+              <div
+                v-else
+                ref="visualStageRef"
+                class="media-audio"
+                :class="{ 'is-playing': player.playing, 'is-fullscreen': visualFullscreen, 'fs-chrome-visible': visualFullscreen && (fsTopVisible || fsBottomVisible) }"
+                @mousemove="onVisualPointer"
+              >
                 <canvas ref="visualizerRef" class="media-visual"></canvas>
-                <div class="media-visual-picker">
+                <div class="media-visual-picker" :class="{ 'is-fs-hidden': visualFullscreen && !fsTopVisible }">
                   <span class="eyebrow">VISUAL</span>
                   <select v-model="visualMode" class="media-visual-select" title="选择音频可视化效果">
                     <option v-for="mode in VISUAL_MODES" :key="mode.value" :value="mode.value">{{ mode.label }}</option>
@@ -1870,7 +2031,30 @@ onBeforeUnmount(() => {
                     {{ visualFullscreen ? "退出" : "全屏" }}
                   </button>
                 </div>
-                <button v-if="visualFullscreen" class="media-visual-exit" title="退出全屏" @click="toggleVisualFullscreen">×</button>
+                <button v-if="visualFullscreen" class="media-visual-exit" :class="{ 'is-fs-hidden': !fsTopVisible }" title="退出全屏" @click="toggleVisualFullscreen">×</button>
+                <div v-if="visualFullscreen" class="media-fs-bottom" :class="{ 'is-visible': fsBottomVisible }">
+                  <div class="media-fs-info">
+                    <div class="eyebrow">NOW PLAYING · 当前媒体</div>
+                    <strong>{{ active.name }}</strong>
+                    <span>{{ active.type || "音频" }} · {{ formatBytes(active.size) }}</span>
+                  </div>
+                  <div class="media-fs-progress">
+                    <button class="media-fs-play" :title="player.playing ? '暂停' : '播放'" @click="togglePlay">
+                      {{ player.playing ? "❚❚" : "▶" }}
+                    </button>
+                    <span>{{ formatTime(player.currentTime) }}</span>
+                    <input
+                      class="media-fs-seek"
+                      type="range"
+                      min="0"
+                      :max="player.duration || 0"
+                      step="0.1"
+                      :value="player.currentTime"
+                      @input="onSeekInput"
+                    />
+                    <span>{{ formatTime(player.duration) }}</span>
+                  </div>
+                </div>
                 <audio
                   ref="audioRef"
                   :src="objectUrl"
@@ -2057,7 +2241,7 @@ onBeforeUnmount(() => {
             </p>
           </details>
 
-          <p class="media-playlist__note">媒体文件保存在本浏览器 IndexedDB；只有“边转码边播放”会发送到本机 127.0.0.1，不上传外网。</p>
+          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引与播放进度保存在应用本地存储（不在 data/）；只有“边转码边播放”的临时分片会发给本机 127.0.0.1，不上传外网。</p>
         </aside>
       </div>
 
@@ -2192,6 +2376,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line);
   background: rgba(10, 9, 7, 0.8);
   backdrop-filter: blur(4px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
 }
 .media-visual-select {
   border: 1px solid var(--line-soft);
@@ -2228,8 +2413,79 @@ onBeforeUnmount(() => {
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
+  transition: opacity 0.28s ease, transform 0.28s ease;
 }
 .media-visual-exit:hover { border-color: #6ea8fe; color: #6ea8fe; }
+.media-visual-picker.is-fs-hidden,
+.media-visual-exit.is-fs-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+}
+.media-audio.is-fullscreen { cursor: none; }
+.media-audio.is-fullscreen.fs-chrome-visible { cursor: default; }
+.media-fs-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  padding: 34px 28px 24px;
+  background: linear-gradient(0deg, rgba(5, 4, 3, 0.96), rgba(5, 4, 3, 0.72) 58%, transparent);
+  opacity: 0;
+  transform: translateY(18px);
+  pointer-events: none;
+  transition: opacity 0.32s ease, transform 0.32s ease;
+}
+.media-fs-bottom.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.media-fs-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  text-shadow: 0 2px 18px #000;
+}
+.media-fs-info strong {
+  font-family: var(--display);
+  font-size: clamp(22px, 3vw, 38px);
+  line-height: 1.05;
+  color: var(--bone);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.media-fs-info span { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--muted); }
+.media-fs-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--bone-dim);
+}
+.media-fs-play {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 36px;
+  border: 1px solid #6ea8fe;
+  background: rgba(110, 168, 254, 0.15);
+  color: #6ea8fe;
+  font-size: 13px;
+  cursor: pointer;
+}
+.media-fs-play:hover { background: #6ea8fe; color: #07101f; }
+.media-fs-seek {
+  flex: 1;
+  accent-color: #6ea8fe;
+  height: 4px;
+}
+.media-audio:fullscreen .media-visual-picker,
+.media-audio:-webkit-full-screen .media-visual-picker {
+  top: 18px;
+  right: 18px;
+}
 .media-audio:fullscreen,
 .media-audio:-webkit-full-screen {
   width: 100vw;

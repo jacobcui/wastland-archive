@@ -4,7 +4,8 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 APP=${1:?usage: package-native.sh <app> <arch>}
 ARCH=${2:?usage: package-native.sh <app> <arch>}
-NAME="Wasteland-Archive-mac-$ARCH"
+VERSION=$(node -p "require('./package.json').version")
+NAME="Wasteland-Archive-mac-$ARCH-$VERSION"
 ZIP="release/native/$NAME.zip"
 DMG="release/native/$NAME.dmg"
 
@@ -17,7 +18,6 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
 # Standard drag-to-install DMG: app, Applications alias, arrow background,
 # and a Finder window with fixed icon positions.
-VERSION=$(node -p "require('./package.json').version")
 VOLNAME="废土馆藏 $VERSION"
 STAGE=$(mktemp -d /tmp/wasteland-dmg.XXXXXX)
 RW=$(mktemp /tmp/wasteland-rw.XXXXXX.dmg)

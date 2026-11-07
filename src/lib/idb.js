@@ -61,6 +61,16 @@ export async function idbGet(name, key) {
   });
 }
 
+export async function idbPutMany(name, values) {
+  return withStore(name, "readwrite", (store) => {
+    for (const value of values) {
+      const key = value && value.id !== undefined ? value.id : undefined;
+      if (key === undefined) store.put(value);
+      else store.put(value, key);
+    }
+  });
+}
+
 export async function idbPut(name, value, key) {
   const actualKey = key === undefined && value && value.id !== undefined ? value.id : key;
   return withStore(name, "readwrite", (store) => (actualKey === undefined ? store.put(value) : store.put(value, actualKey)));

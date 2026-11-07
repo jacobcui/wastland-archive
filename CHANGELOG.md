@@ -2,6 +2,20 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.3] — 2026-11-08
+
+### Added
+
+- Per-media resume: switching tracks, leaving the plugin, quitting the app or reloading restores the last playback position; finished media starts from the beginning.
+- Fullscreen audio visualizer chrome: file info, transport and progress fade in near the bottom edge; the close button and visual selector fade in near the top edge.
+- Versioned release asset filenames.
+
+### Changed
+
+- Folder imports now save only metadata, file-handle references and playback positions. Media files are never copied into IndexedDB, `data/` or the app bundle; files stay in their original folders.
+- Folder imports are batched and no longer write media blobs, making large movie folders much faster.
+- Particle visualizer now uses 220 particles, trails, a frequency-driven glow and animated rings.
+
 ## [1.0.2] — 2026-11-07
 
 ### Changed
