@@ -17,10 +17,6 @@ fs.rmSync(target, { recursive: true, force: true });
 fs.mkdirSync(target, { recursive: true });
 
 const wanted = ["chromium_headless_shell-" + revision];
-const ffmpeg = fs.readdirSync(cacheRoot)
-  .filter((name) => /^ffmpeg-\d+$/.test(name))
-  .sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]))[0];
-if (ffmpeg) wanted.push(ffmpeg);
 
 for (const name of wanted) {
   const source = path.join(cacheRoot, name);

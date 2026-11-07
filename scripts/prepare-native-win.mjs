@@ -31,7 +31,7 @@ if (!fs.existsSync(shellDir)) {
 
 fs.rmSync(target, { recursive: true, force: true });
 fs.mkdirSync(target, { recursive: true });
-for (const name of [shellName, "ffmpeg-1013"]) {
+for (const name of [shellName]) {
   const source = path.join(runtime, name);
   if (fs.existsSync(source)) {
     console.log("→ " + name + " (win64)");

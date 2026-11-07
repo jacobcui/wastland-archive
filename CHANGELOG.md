@@ -2,6 +2,14 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.2] — 2026-11-07
+
+### Changed
+
+- Reduced the installed macOS app size from ~789 MB to ~585 MB (Apple Silicon) by excluding frontend-only build dependencies, unused PDF.js builds and FFmpeg UMD assets from the Electron bundle.
+- Limited bundled Electron locales to English and Simplified Chinese.
+- Removed the unused Playwright FFmpeg helper from the bundled browser resources.
+
 ## [1.0.1] — 2026-11-07
 
 ### Changed

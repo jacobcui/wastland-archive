@@ -2,7 +2,7 @@
 
 <p align="center"><img src="src/assets/logo-wordmark.png" alt="Wasteland Archive logo" width="440" /></p>
 
-**Version 1.0.1** · [Changelog](CHANGELOG.md)
+**Version 1.0.2** · [Changelog](CHANGELOG.md)
 
 **Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
 
