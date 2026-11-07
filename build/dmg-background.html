@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { margin:0; width:660px; height:420px; overflow:hidden; background:#0b0907; color:#f2e7d0; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  .bg { position:absolute; inset:0; background:
+    radial-gradient(55% 60% at 50% 45%, rgba(255,176,0,.13), transparent 70%),
+    radial-gradient(80% 50% at 15% 0%, rgba(194,84,42,.18), transparent 65%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 8px, transparent 8px 16px),
+    #0b0907; }
+  .border { position:absolute; inset:14px; border:1px solid rgba(255,176,0,.24); }
+  .top { position:absolute; top:35px; width:100%; text-align:center; }
+  .title { font-family: Georgia, "Times New Roman", serif; font-size:24px; letter-spacing:.22em; text-transform:uppercase; color:#f6ead1; }
+  .sub { margin-top:10px; font-size:10px; letter-spacing:.26em; text-transform:uppercase; color:#b09a79; }
+  .arrow { position:absolute; top:205px; left:255px; width:150px; height:2px; background:linear-gradient(90deg, rgba(255,176,0,.15), #ffb000); }
+  .arrow::after { content:""; position:absolute; right:-2px; top:-8px; width:16px; height:16px; border-top:2px solid #ffb000; border-right:2px solid #ffb000; transform:rotate(45deg); }
+  .label { position:absolute; top:230px; left:160px; width:340px; text-align:center; font-size:9px; letter-spacing:.24em; text-transform:uppercase; color:#8a7a62; }
+  .lamp { position:absolute; top:18px; left:24px; width:26px; height:26px; border:1px solid #ffb000; display:grid; place-items:center; color:#ffb000; font:bold 14px Georgia,serif; }
+</style></head><body><div class="bg"></div><div class="border"></div><div class="lamp">W</div>
+<div class="top"><div class="title">Wasteland Archive</div><div class="sub">Drag 废土馆藏 into Applications</div></div>
+<div class="arrow"></div><div class="label">drag to install · 拖入 Applications</div></body></html>

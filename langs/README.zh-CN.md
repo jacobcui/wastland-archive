@@ -12,7 +12,7 @@
 
 - **离线优先**：归档、PDF、图片目录、媒体都保存在本机，不上传第三方云。
 - **插件库**：MKX 杂志档案、PDF 阅读、图片浏览、Media 四个独立插件。停用插件不会删除数据。
-- **原生 macOS App**：双击即用，内置 Node、Chromium、ffmpeg 与 Playwright，不再需要终端或单独 server。
+- **原生桌面 App**：macOS（Apple Silicon + Intel）与 Windows x64 均为双击即用，内置 Node、Chromium、ffmpeg 与 Playwright，不再需要终端或单独 server。
 - **可恢复转码**：原生不支持的视频由本机 ffmpeg 边转 HLS 边播放；切走保留后台会话与播放位置，切回继续。
 - **废土背景**：内置 4 张原创废土风背景，也支持上传自定义图片到 ~/.wasteland_browser/bg_screens。
 - **中英双语**：右上角切换 English / 中文；语言包在 src/i18n/locales。
@@ -124,6 +124,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make down | 停止服务 |
 | make package | 生成 Web 便携包 release/wasteland-archive.tar.gz |
 | make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
+| make app-win | 生成 Windows x64 便携包 Wasteland-Archive-win-x64.zip |
 
 ## 原生 macOS App
 
@@ -148,6 +149,24 @@ release/native/Wasteland-Archive-mac-x64.zip
   xattr -dr com.apple.quarantine "废土馆藏.app"
 
 ![原生 App](../docs/native-app.png)
+
+## Windows 便携版
+
+~~~bash
+make app-win
+~~~
+
+输出：
+
+~~~text
+release/native/Wasteland-Archive-win-x64.zip
+~~~
+
+在 Windows 10/11 x64 上解压，运行 **废土馆藏.exe** 即可。这是便携版，不需要安装 Node，也不需要单独启动 server；包内包含 Windows Electron、ffmpeg 和 Playwright headless Chromium。
+
+- Windows App 数据：%APPDATA%\wasteland-archive
+- 自定义背景：%USERPROFILE%\.wasteland_browser\bg_screens
+- 构建未签名；首次运行 Windows SmartScreen 可能提示。
 
 ## 语言包
 
@@ -208,10 +227,6 @@ Electron（可选原生壳）
 - MKX 密码只在本机浏览器；服务端只保存 token。
 - 本地媒体和归档不出本机；HLS 转码服务只监听 127.0.0.1。
 - data/、.runtime/、node_modules/、release/、native resources 都被 git 忽略。
-
-## 声明
-
-废土馆藏是独立的本地阅读工具，不隶属于 Gearbox Software、2K Games 或 Borderlands 系列。背景为原创矢量插画，仅借鉴废土漫画风格。
 
 ---
 

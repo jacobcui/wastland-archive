@@ -52,7 +52,6 @@ export default {
   "background.noneHint": "Keep the dark terminal backdrop",
   "background.eyebrow": "WASTELAND SCREENS · BACKGROUND",
   "background.title": "Change the wasteland",
-  "background.hint": "Presets ship with the project. Custom images are saved locally under {path} and never uploaded.",
   "background.presets": "PRESETS",
   "background.custom": "CUSTOM",
   "background.empty": "No custom background yet. Pick a local image to upload.",

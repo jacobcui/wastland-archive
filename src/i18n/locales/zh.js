@@ -52,7 +52,6 @@ export default {
   "background.noneHint": "只保留深色终端底色",
   "background.eyebrow": "WASTELAND SCREENS · 背景",
   "background.title": "换一张废土",
-  "background.hint": "预设背景随项目提供；自定义图片保存到本机 {path}，不会上传外网。",
   "background.presets": "预设 · PRESETS",
   "background.custom": "自定义 · CUSTOM",
   "background.empty": "还没有自定义背景。选一张本机图片上传即可。",

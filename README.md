@@ -12,7 +12,7 @@ English | [简体中文](langs/README.zh-CN.md)
 
 - **Offline-first.** Archives, PDFs, image folders and media live on this machine. Nothing is uploaded to a third-party cloud.
 - **Plugin deck.** Four independent plugins: MKX magazine archive, PDF reader, image browser and media player. Disabling a plugin never deletes its data.
-- **Native macOS app.** A double-clickable Electron app is included. No terminal, Node or separate server is required after installation.
+- **Native desktop apps.** Double-clickable Electron apps for macOS (Apple Silicon + Intel) and Windows x64. No terminal, Node or separate server is required after installation.
 - **Resumable media.** Unsupported videos are transcoded on the fly into HLS segments by a local ffmpeg process. Switching away keeps the backend session alive and resumes from the saved position.
 - **Wasteland screens.** Original cel-shaded / ink-outline backgrounds ship with the app. Users can upload their own backgrounds to `~/.wasteland_browser/bg_screens`.
 - **Bilingual UI.** Switch between English and 简体中文 from the top bar. Language packs live in `src/i18n/locales`.
@@ -122,6 +122,7 @@ Useful commands:
 | `make down` | Stop the server |
 | `make package` | Portable web package → `release/wasteland-archive.tar.gz` |
 | `make app` | Native macOS apps (arm64 + Intel x64) → `.app` + zip + dmg |
+| `make app-win` | Windows x64 portable app → `Wasteland-Archive-win-x64.zip` |
 
 ## Native macOS app
 
@@ -146,6 +147,24 @@ Both DMGs contain the app plus an **Applications shortcut**. Open the DMG and dr
   `xattr -dr com.apple.quarantine "废土馆藏.app"`
 
 ![Native app](docs/native-app.png)
+
+## Windows portable app
+
+```bash
+make app-win
+```
+
+Output:
+
+```text
+release/native/Wasteland-Archive-win-x64.zip
+```
+
+Unzip it on Windows 10/11 x64 and run **废土馆藏.exe**. This is a portable build — no installer, no Node installation. It bundles Windows Electron, ffmpeg and Playwright headless Chromium.
+
+- Windows app data: `%APPDATA%\wasteland-archive`
+- Custom backgrounds: `%USERPROFILE%\.wasteland_browser\bg_screens`
+- The build is unsigned; Windows SmartScreen may show a warning on first run.
 
 ## Language packs
 
@@ -214,10 +233,6 @@ langs/           Translated READMEs
 - MKX credentials stay in the browser; the server caches only a token.
 - Local media and archives stay on this machine. The HLS transcoder listens only on `127.0.0.1`.
 - `data/`, `.runtime/`, `node_modules/`, `release/` and native resources are ignored by git.
-
-## Disclaimer
-
-Wasteland Archive is an independent local reader. It is not affiliated with Gearbox Software, 2K Games or the Borderlands franchise. Background artwork is original vector art inspired by cel-shaded wasteland aesthetics.
 
 ---
 

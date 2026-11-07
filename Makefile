@@ -13,7 +13,7 @@ NODE_BIN_DIR := $(RUNTIME_DIR)/node/bin
 export PATH := $(NODE_BIN_DIR):$(PATH)
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap install build package app up down restart status logs dev clean
+.PHONY: help bootstrap install build package app app-win up down restart status logs dev clean
 
 help: ## 显示可用命令
 	@echo "废土馆藏 · WASTELAND ARCHIVE"
@@ -42,6 +42,10 @@ app: bootstrap ## 构建 macOS 原生 App（arm64 + x64）+ zip/dmg
 	npm run desktop:zip
 	@echo "● arm64：release/native/Wasteland-Archive-mac-arm64.dmg"
 	@echo "● Intel x64：release/native/Wasteland-Archive-mac-x64.dmg"
+
+app-win: bootstrap ## 构建 Windows x64 便携包
+	npm run desktop:zip:win
+	@echo "● Windows x64：release/native/Wasteland-Archive-win-x64.zip"
 
 up: bootstrap ## 后台启动（自动检测环境并安装缺失依赖）
 	@mkdir -p $(RUN_DIR); \

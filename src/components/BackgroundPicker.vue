@@ -93,8 +93,6 @@ async function remove(item) {
         <button class="bg-panel__close" :title="t('background.close')" @click="open = false">×</button>
       </header>
 
-      <p class="bg-panel__hint">{{ t("background.hint", { path: customDir }) }}</p>
-
       <button class="bg-none-card" :class="{ 'is-active': isNone }" @click="selectNoBackground">
         <span class="bg-none-card__swatch">∅</span>
         <span class="bg-none-card__body">
@@ -204,8 +202,7 @@ async function remove(item) {
 .bg-panel__title { margin: 4px 0 0; font-family: var(--display); font-size: 25px; letter-spacing: 0.04em; color: var(--bone); }
 .bg-panel__close { border: 0; background: transparent; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; }
 .bg-panel__close:hover { color: var(--danger); }
-.bg-panel__hint { margin: 10px 0 14px; font-size: 11px; line-height: 1.8; color: var(--muted); }
-.bg-panel__hint code, .bg-panel__path code { color: var(--amber); font-family: var(--mono); font-size: 10px; }
+.bg-panel__path code { color: var(--amber); font-family: var(--mono); font-size: 10px; }
 .bg-group-label { margin: 12px 0 8px; color: var(--amber); font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; }
 .bg-none-card {
   width: 100%;

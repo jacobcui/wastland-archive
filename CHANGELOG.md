@@ -28,5 +28,6 @@ First public version.
 
 ### Packaging
 
-- Apple Silicon (arm64) and Intel (x86_64) macOS packages.
+- Apple Silicon (arm64) and Intel (x86_64) macOS packages with drag-to-Applications DMGs.
+- Windows x64 portable package (`.zip`).
 - Portable web package for `make up`.

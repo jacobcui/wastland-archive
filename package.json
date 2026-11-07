@@ -15,7 +15,8 @@
     "desktop": "electron .",
     "desktop:prepare": "node scripts/prepare-native.mjs",
     "desktop:build": "npm run build && npm run desktop:prepare && electron-builder --mac dir --arm64 --config.directories.output=release/native/arm64",
-    "desktop:zip": "sh scripts/build-native.sh"
+    "desktop:zip": "sh scripts/build-native.sh",
+    "desktop:zip:win": "sh scripts/build-native-win.sh"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
@@ -67,6 +68,12 @@
       ],
       "identity": null,
       "hardenedRuntime": false
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "dir"
+      ]
     }
   }
 }
