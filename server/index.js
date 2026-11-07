@@ -21,7 +21,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/media", express.static(path.join(ROOT, "data"), { maxAge: "7d", fallthrough: true }));
+/* Issue files live under DATA_DIR, not ROOT: in the native app ROOT is the
+   read-only .app bundle while DATA_DIR is ~/Library/Application Support/... */
+app.use("/media/issues", express.static(ISSUES_DIR, { maxAge: "7d", fallthrough: true }));
 app.use("/vendor/pdfjs", express.static(path.join(ROOT, "node_modules", "pdfjs-dist"), { maxAge: "7d", fallthrough: true }));
 app.use("/vendor/ffmpeg", express.static(path.join(ROOT, "node_modules", "@ffmpeg/core/dist/esm"), { maxAge: "7d", fallthrough: true }));
 
