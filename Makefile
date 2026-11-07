@@ -33,16 +33,15 @@ build: bootstrap ## 打包前端到 dist/（不是独立应用，需本地服务
 package: build ## 打可移植包到 release/（含 server + dist + 源码）
 	@rm -rf release/wasteland-browser release/wasteland-archive release/wasteland-archive.tar.gz
 	@mkdir -p release/wasteland-archive/data
-	@cp -R server dist src scripts docs langs bg_screens index.html vite.config.js package.json package-lock.json README.md Makefile release/wasteland-archive/
+	@cp -R server dist src scripts docs langs bg_screens index.html vite.config.js package.json package-lock.json README.md CHANGELOG.md Makefile release/wasteland-archive/
 	@cd release && tar -czf wasteland-archive.tar.gz wasteland-archive
 	@echo "● 已生成 release/wasteland-archive.tar.gz"
 	@echo "  目标电脑解压后直接：make up"
 
-app: bootstrap ## 构建 macOS 原生 .app（arm64）+ zip
+app: bootstrap ## 构建 macOS 原生 App（arm64 + x64）+ zip/dmg
 	npm run desktop:zip
-	@echo "● 原生 App：release/native/mac-arm64/废土馆藏.app"
-	@echo "● 压缩包：release/native/Wasteland-Archive-mac-arm64.zip"
-	@echo "● DMG：release/native/Wasteland-Archive-mac-arm64.dmg"
+	@echo "● arm64：release/native/Wasteland-Archive-mac-arm64.dmg"
+	@echo "● Intel x64：release/native/Wasteland-Archive-mac-x64.dmg"
 
 up: bootstrap ## 后台启动（自动检测环境并安装缺失依赖）
 	@mkdir -p $(RUN_DIR); \

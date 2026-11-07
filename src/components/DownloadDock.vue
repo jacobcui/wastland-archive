@@ -31,7 +31,7 @@ function ratio(job) {
         />
       </div>
       <div class="dock__row">
-        <span>{{ job.status === "preparing" ? "解析目录…" : job.downloaded + "/" + job.total + " 页" }}</span>
+        <span>{{ job.status === "queued" ? "排队中 · 等待前一个任务完成…" : job.status === "preparing" ? "解析目录…" : job.downloaded + "/" + job.total + " 页" }}</span>
         <span>{{ formatBytes(job.bytes) }}</span>
       </div>
       <button class="mini-btn" style="width: 100%; margin-top: 6px" @click="cancelDownload(job.nodeId)">中止任务</button>

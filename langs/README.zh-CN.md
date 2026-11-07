@@ -1,5 +1,7 @@
 # 废土馆藏 · Wasteland Archive
 
+**版本 1.0.0** · [更新日志](../CHANGELOG.md)
+
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
 [English](../README.md) | 简体中文
@@ -28,6 +30,8 @@
 
 登录只在 MKX 插件内进行；主菜单不替你登录。密码只保存在浏览器，服务端仅缓存 token 到 data/auth.json（0600）。
 
+归档下载是**串行**的：同一时间只执行一个归档任务，任务内部也一次只请求一页；后面的任务会排队，直到前一个任务完成。Sync 旁边的 **↻** 按钮会重新读取本地 data/issues 目录，适合手动拷贝归档后刷新。
+
 ### PDF 阅读
 
 ![PDF 阅读](../docs/pdf-viewer.png)
@@ -42,18 +46,15 @@
 
 ### Media
 
+![Media 插件介绍图 — 示例视频](../docs/sample-mp4.png)
+
 - 优先使用浏览器原生解码。
 - 原生失败时自动由本机 ffmpeg 生成 2 秒 HLS 片段，首段生成即播放。
 - 切到别的媒体再切回来：复用 HLS 会话与已生成片段，并从上次播放位置继续。
 - 音频可视化：波形、频谱条、线状频谱、径向频谱、粒子、山峦。
 - 没有可用 ffmpeg 时，小文件自动退回 WASM 完整转码。
 
-![媒体目录树](../docs/media-folder.png)
-![媒体播放](../docs/media-player.png)
-
 示例：[sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4)（来自 samplelib.com）。
-
-![示例 MP4](../docs/sample-mp4.png)
 
 ### 粒子可视化
 
@@ -122,7 +123,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make status | 查看进程 + 登录状态 |
 | make down | 停止服务 |
 | make package | 生成 Web 便携包 release/wasteland-archive.tar.gz |
-| make app | 生成 macOS 原生 .app + zip + dmg |
+| make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
 
 ## 原生 macOS App
 
@@ -130,15 +131,16 @@ make up 会运行 scripts/bootstrap.sh：
 make app
 ~~~
 
-输出（Apple Silicon / arm64）：
+输出（Apple Silicon + Intel）：
 
 ~~~text
-release/native/mac-arm64/废土馆藏.app
-release/native/Wasteland-Archive-mac-arm64.zip
 release/native/Wasteland-Archive-mac-arm64.dmg
+release/native/Wasteland-Archive-mac-arm64.zip
+release/native/Wasteland-Archive-mac-x64.dmg
+release/native/Wasteland-Archive-mac-x64.zip
 ~~~
 
-打开 DMG，把 **废土馆藏.app** 拖进 Applications。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
+两个 DMG 都包含 App 和 **Applications 快捷方式**。打开 DMG，把 **废土馆藏.app** 拖到 Applications 上。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
 
 - App 数据：~/Library/Application Support/wasteland-archive
 - 自定义背景：~/.wasteland_browser/bg_screens

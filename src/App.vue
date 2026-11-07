@@ -21,6 +21,8 @@ function parseHash() {
 const route = ref(parseHash());
 const componentCache = new Map();
 const { backgroundStyle, isNone, loadBackgrounds } = useBackgrounds();
+const appVersion = __APP_VERSION__;
+const changelogUrl = "https://github.com/jacobcui/wastland-archive/blob/main/CHANGELOG.md";
 
 function pluginName(plugin) {
   return plugin ? t(plugin.nameKey) : "";
@@ -86,13 +88,16 @@ onBeforeUnmount(() => {
 
       <template v-if="!activePlugin">
         <header class="topbar topbar--shell">
-          <button class="brand" @click="goHome">
-            <div class="brand__mark brand__mark--svg"><WastelandMark /></div>
-            <div class="brand__text">
-              <span class="brand__title">{{ t("app.brandTitle") }}</span>
-              <span class="brand__sub">{{ t("app.brandSub") }}</span>
-            </div>
-          </button>
+          <div class="brand-stack">
+            <button class="brand" @click="goHome">
+              <div class="brand__mark brand__mark--svg"><WastelandMark /></div>
+              <div class="brand__text">
+                <span class="brand__title">{{ t("app.brandTitle") }}</span>
+                <span class="brand__sub">{{ t("app.brandSub") }}</span>
+              </div>
+            </button>
+            <a class="brand__version" :href="changelogUrl" target="_blank" rel="noreferrer" :title="t('app.changelog')">v{{ appVersion }}</a>
+          </div>
 
           <div class="topbar__spacer" />
 

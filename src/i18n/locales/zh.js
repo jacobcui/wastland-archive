@@ -1,4 +1,5 @@
 export default {
+  "app.changelog": "在 GitHub 查看更新日志",
   "app.brandTitle": "废土馆藏",
   "app.brandSub": "WASTELAND ARCHIVE · SECTOR 04",
   "app.heroEyebrow": "WASTELAND ARCHIVE · OFFLINE RUNTIME · PLUGIN DECK",

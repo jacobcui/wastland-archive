@@ -1,5 +1,9 @@
-import { chromium } from "playwright";
 import { UPSTREAM, UA } from "./config.js";
+
+async function launchChromium(options) {
+  const { chromium } = await import("playwright");
+  return chromium.launch(options);
+}
 import { CredentialsRequiredError, normalizeCredentials, saveToken } from "./auth.js";
 
 const SUBSCRIBE_PATH = "/knowledge/ebook/subscribe";
@@ -7,9 +11,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function launch() {
   try {
-    return await chromium.launch({ headless: true, channel: "chrome" });
+    return await launchChromium({ headless: true, channel: "chrome" });
   } catch {
-    return chromium.launch({ headless: true });
+    return launchChromium({ headless: true });
   }
 }
 

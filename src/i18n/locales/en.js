@@ -1,4 +1,5 @@
 export default {
+  "app.changelog": "View changelog on GitHub",
   "app.brandTitle": "Wasteland Archive",
   "app.brandSub": "WASTELAND ARCHIVE · SECTOR 04",
   "app.heroEyebrow": "WASTELAND ARCHIVE · OFFLINE RUNTIME · PLUGIN DECK",

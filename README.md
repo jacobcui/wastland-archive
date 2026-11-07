@@ -1,5 +1,7 @@
 # Wasteland Archive · 废土馆藏
 
+**Version 1.0.0** · [Changelog](CHANGELOG.md)
+
 **Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
 
 English | [简体中文](langs/README.zh-CN.md)
@@ -28,6 +30,8 @@ English | [简体中文](langs/README.zh-CN.md)
 
 Log in inside the MKX plugin only. The main menu never signs in for you. Passwords stay in the browser; the server only caches a token in `data/auth.json` (mode 0600).
 
+Downloads are deliberately **serialized**: only one archive job runs at a time, and each job fetches one page at a time. Additional issues stay queued until the previous job finishes. The **↻** button beside Sync re-reads the local `data/issues` directory — useful after copying archives in from another machine.
+
 ### PDF reader
 
 ![PDF reader](docs/pdf-viewer.png)
@@ -42,18 +46,15 @@ Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.co
 
 ### Media
 
+![Media plugin introduction — sample video](docs/sample-mp4.png)
+
 - Native playback first.
 - On failure: local ffmpeg produces 2-second HLS segments and playback starts with the first segment.
 - Leave the player and return: the HLS session and playback position are reused. No re-upload, no restart from zero.
 - Audio visualizers: waveform, spectrum bars, line spectrum, radial spectrum, particles and terrain.
 - Built-in WASM fallback for smaller files when ffmpeg is unavailable.
 
-![Media folder tree](docs/media-folder.png)
-![Media player](docs/media-player.png)
-
 Sample: [sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4) from samplelib.com.
-
-![Sample MP4](docs/sample-mp4.png)
 
 ### Particle visualizer
 
@@ -120,7 +121,7 @@ Useful commands:
 | `make status` | Process + login status |
 | `make down` | Stop the server |
 | `make package` | Portable web package → `release/wasteland-archive.tar.gz` |
-| `make app` | Native macOS app → `.app` + zip + dmg |
+| `make app` | Native macOS apps (arm64 + Intel x64) → `.app` + zip + dmg |
 
 ## Native macOS app
 
@@ -128,15 +129,16 @@ Useful commands:
 make app
 ```
 
-Outputs (Apple Silicon / arm64):
+Outputs (Apple Silicon + Intel):
 
 ```text
-release/native/mac-arm64/废土馆藏.app
-release/native/Wasteland-Archive-mac-arm64.zip
 release/native/Wasteland-Archive-mac-arm64.dmg
+release/native/Wasteland-Archive-mac-arm64.zip
+release/native/Wasteland-Archive-mac-x64.dmg
+release/native/Wasteland-Archive-mac-x64.zip
 ```
 
-Open the DMG and drag **废土馆藏.app** to Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
+Both DMGs contain the app plus an **Applications shortcut**. Open the DMG and drag **废土馆藏.app** onto Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
 
 - App data: `~/Library/Application Support/wasteland-archive`
 - Custom backgrounds: `~/.wasteland_browser/bg_screens`

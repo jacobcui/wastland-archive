@@ -187,7 +187,20 @@ body {
   backdrop-filter: blur(6px);
 }
 
+.brand-stack { display: flex; align-items: center; gap: 9px; }
 .brand { display: flex; align-items: center; gap: 12px; }
+.brand__version {
+  border: 1px solid var(--line);
+  padding: 2px 5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand__version:hover { border-color: var(--amber); color: var(--amber); }
 
 .brand__mark {
   width: 38px;
@@ -902,6 +915,13 @@ body {
 }
 .pluginbar__sub { margin-top: 3px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
 .pluginbar__spacer { flex: 1; }
+.pluginbar__refresh {
+  min-width: 32px;
+  padding: 8px 7px;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+}
 
 .launcher {
   flex: 1;

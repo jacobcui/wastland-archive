@@ -169,6 +169,128 @@ async function pool(items, limit, worker, signal) {
   await Promise.all(runners);
 }
 
+const pendingDownloads = [];
+let activeJob = null;
+let queuePump = false;
+
+async function runDownloadJob(job) {
+  const nodeId = job.nodeId;
+  try {
+    const detail = await getIssueDetail(nodeId);
+    const base = normalizeIssue(detail);
+    const pageSource = (detail.ebookPageVos && detail.ebookPageVos[0] && detail.ebookPageVos[0].webpData) || [];
+    const pages = pageSource
+      .filter((p) => p && p.ossUrl)
+      .map((p, index) => ({ index: index + 1, title: p.title || "第" + (index + 1) + "页", url: p.ossUrl }));
+
+    if (!pages.length) throw new Error("这一期没有可下载的页面（可能需要订阅权限）");
+
+    job.title = base.title;
+    job.volume = base.volume;
+    job.coverUrl = base.coverUrl;
+    job.total = pages.length;
+
+    const dir = issueDir(nodeId);
+    const pdir = pagesDir(nodeId);
+    fs.mkdirSync(pdir, { recursive: true });
+
+    const meta = {
+      nodeId,
+      title: base.title,
+      volume: base.volume,
+      year: base.year,
+      month: base.month,
+      number: base.number,
+      magazineId: base.magazineId,
+      coverUrl: base.coverUrl,
+      publishTime: base.publishTime,
+      pageCount: pages.length,
+      status: "downloading",
+      startedAt: new Date().toISOString(),
+      source: "mkexue.com",
+    };
+    writeMeta(nodeId, meta);
+
+    // cover
+    if (base.coverUrl) {
+      try {
+        const coverBuf = await fetchBinary(base.coverUrl, { signal: job.controller.signal });
+        fs.writeFileSync(path.join(dir, "cover." + extFromContentType(coverBuf, base.coverUrl)), coverBuf);
+      } catch {}
+    }
+
+    job.status = "downloading";
+    emitJob(job);
+
+    // One page at a time: the mkexue OSS origin rate-limits concurrent archive
+    // requests. Do not raise this limit; it is intentionally serial.
+    await pool(
+      pages,
+      1,
+      async (page) => {
+        const label = String(page.index).padStart(3, "0");
+        const target = path.join(pdir, "p-" + label);
+        try {
+          const buf = await fetchBinary(page.url, { signal: job.controller.signal });
+          const ext = extFromContentType(buf, page.url);
+          fs.writeFileSync(target + "." + ext, buf);
+          job.downloaded += 1;
+          job.bytes += buf.length;
+        } catch (error) {
+          job.failed += 1;
+        }
+        emitJob(job);
+      },
+      job.controller.signal,
+    );
+
+    const metaFinal = {
+      ...meta,
+      status: job.controller.signal.aborted ? "canceled" : job.downloaded === 0 ? "error" : job.failed > 0 ? "partial" : "complete",
+      finishedAt: new Date().toISOString(),
+      requestedPages: job.total,
+      storedPages: job.downloaded,
+    };
+    writeMeta(nodeId, metaFinal);
+
+    job.status = metaFinal.status === "complete" ? "complete" : metaFinal.status === "canceled" ? "canceled" : "error";
+    if (job.status === "error") job.error = job.downloaded === 0 ? "所有页面下载失败" : job.failed + " 页下载失败，可重试补齐";
+    job.finishedAt = Date.now();
+    emitJob(job);
+  } catch (error) {
+    const aborted = job.controller.signal.aborted;
+    job.status = aborted ? "canceled" : "error";
+    job.error = aborted ? "已取消" : error.message;
+    job.finishedAt = Date.now();
+    const meta = readMeta(nodeId);
+    if (meta) writeMeta(nodeId, { ...meta, status: aborted ? "canceled" : "error", error: job.error });
+    emitJob(job);
+  }
+}
+
+async function pumpDownloadQueue() {
+  if (queuePump || activeJob) return;
+  queuePump = true;
+  try {
+    while (!activeJob) {
+      const index = pendingDownloads.findIndex((job) => job.status === "queued");
+      if (index === -1) break;
+      const job = pendingDownloads.splice(index, 1)[0];
+      activeJob = job;
+      job.status = "preparing";
+      job.startedAt = Date.now();
+      emitJob(job);
+      try {
+        await runDownloadJob(job);
+      } finally {
+        activeJob = null;
+      }
+    }
+  } finally {
+    queuePump = false;
+  }
+}
+
 export function startDownload(rawNodeId) {
   const nodeId = String(rawNodeId);
   const existing = findActiveJob(nodeId);
@@ -186,113 +308,23 @@ export function startDownload(rawNodeId) {
     failed: 0,
     bytes: 0,
     error: null,
-    startedAt: Date.now(),
+    queuedAt: Date.now(),
+    startedAt: null,
     finishedAt: null,
     controller: new AbortController(),
   };
   jobs.set(job.id, job);
+  pendingDownloads.push(job);
   emitJob(job);
-
-  (async () => {
-    try {
-      job.status = "preparing";
-      emitJob(job);
-      const detail = await getIssueDetail(nodeId);
-      const base = normalizeIssue(detail);
-      const pageSource = (detail.ebookPageVos && detail.ebookPageVos[0] && detail.ebookPageVos[0].webpData) || [];
-      const pages = pageSource
-        .filter((p) => p && p.ossUrl)
-        .map((p, index) => ({ index: index + 1, title: p.title || "第" + (index + 1) + "页", url: p.ossUrl }));
-
-      if (!pages.length) throw new Error("这一期没有可下载的页面（可能需要订阅权限）");
-
-      job.title = base.title;
-      job.volume = base.volume;
-      job.coverUrl = base.coverUrl;
-      job.total = pages.length;
-
-      const dir = issueDir(nodeId);
-      const pdir = pagesDir(nodeId);
-      fs.mkdirSync(pdir, { recursive: true });
-
-      const meta = {
-        nodeId,
-        title: base.title,
-        volume: base.volume,
-        year: base.year,
-        month: base.month,
-        number: base.number,
-        magazineId: base.magazineId,
-        coverUrl: base.coverUrl,
-        publishTime: base.publishTime,
-        pageCount: pages.length,
-        status: "downloading",
-        startedAt: new Date().toISOString(),
-        source: "mkexue.com",
-      };
-      writeMeta(nodeId, meta);
-
-      // cover
-      if (base.coverUrl) {
-        try {
-          const coverBuf = await fetchBinary(base.coverUrl, { signal: job.controller.signal });
-          fs.writeFileSync(path.join(dir, "cover." + extFromContentType(coverBuf, base.coverUrl)), coverBuf);
-        } catch {}
-      }
-
-      job.status = "downloading";
-      emitJob(job);
-
-      await pool(
-        pages,
-        4,
-        async (page) => {
-          const label = String(page.index).padStart(3, "0");
-          const target = path.join(pdir, "p-" + label);
-          try {
-            const buf = await fetchBinary(page.url, { signal: job.controller.signal });
-            const ext = extFromContentType(buf, page.url);
-            fs.writeFileSync(target + "." + ext, buf);
-            job.downloaded += 1;
-            job.bytes += buf.length;
-          } catch (error) {
-            job.failed += 1;
-          }
-          emitJob(job);
-        },
-        job.controller.signal,
-      );
-
-      const metaFinal = {
-        ...meta,
-        status: job.downloaded === 0 ? "error" : job.failed > 0 ? "partial" : "complete",
-        finishedAt: new Date().toISOString(),
-        requestedPages: job.total,
-        storedPages: job.downloaded,
-      };
-      writeMeta(nodeId, metaFinal);
-
-      job.status = metaFinal.status === "complete" ? "complete" : "error";
-      if (job.status === "error") job.error = job.downloaded === 0 ? "所有页面下载失败" : job.failed + " 页下载失败，可重试补齐";
-      job.finishedAt = Date.now();
-      emitJob(job);
-    } catch (error) {
-      const aborted = job.controller.signal.aborted;
-      job.status = aborted ? "canceled" : "error";
-      job.error = aborted ? "已取消" : error.message;
-      job.finishedAt = Date.now();
-      const meta = readMeta(nodeId);
-      if (meta) writeMeta(nodeId, { ...meta, status: aborted ? "canceled" : "error", error: job.error });
-      emitJob(job);
-    }
-  })();
-
+  pumpDownloadQueue();
   return publicJob(job);
 }
 
 export function cancelJob(jobId) {
   const job = jobs.get(jobId);
   if (!job) return null;
+  const queuedIndex = pendingDownloads.indexOf(job);
+  if (queuedIndex !== -1) pendingDownloads.splice(queuedIndex, 1);
   if (["queued", "preparing", "downloading"].includes(job.status)) {
     job.controller.abort();
     job.status = "canceled";

@@ -22,8 +22,10 @@ import { sessionState, loadSession, openLoginDialog, maskPhone } from "@/stores/
 import { goHome } from "@/lib/navigation";
 import { formatBytes } from "@/lib/format";
 import { t } from "@/i18n";
+import { notify } from "@/stores/ui";
 
 const pending = ref(null);
+const refreshing = ref(false);
 let poll = null;
 
 const library = computed(() => state.library);
@@ -65,6 +67,18 @@ function confirmDownload() {
 
 function sync() {
   syncArchive();
+}
+
+async function refreshCache() {
+  if (refreshing.value || state.loading) return;
+  refreshing.value = true;
+  try {
+    await loadLibrary(state.year, true);
+    await refreshJobs();
+    notify("本地归档缓存已刷新", "success");
+  } finally {
+    refreshing.value = false;
+  }
 }
 
 watch(
@@ -134,6 +148,15 @@ onBeforeUnmount(() => {
 
       <button class="btn-ghost" :disabled="state.loading || state.busy" @click="sync">
         {{ state.loading ? "同步中…" : "⟳ 同步" }}
+      </button>
+      <button
+        class="btn-ghost pluginbar__refresh"
+        :disabled="state.loading || state.busy || refreshing"
+        title="刷新本地归档缓存（重新读取 data/issues）"
+        aria-label="刷新本地归档缓存"
+        @click="refreshCache"
+      >
+        {{ refreshing ? "…" : "↻" }}
       </button>
     </header>
 

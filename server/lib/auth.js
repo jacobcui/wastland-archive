@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
-import { chromium } from "playwright";
 import { AUTH_FILE, UPSTREAM, DATA_DIR, UA } from "./config.js";
+
+async function launchChromium(options) {
+  const { chromium } = await import("playwright");
+  return chromium.launch(options);
+}
 
 /* ------------------------------------------------------------------ *
  * Credentials are supplied by the browser (popup login) and used in
@@ -123,7 +127,7 @@ export async function browserLogin(creds) {
   for (const options of launchers) {
     let browser;
     try {
-      browser = await chromium.launch({ headless: true, ...options });
+      browser = await launchChromium({ headless: true, ...options });
       const context = await browser.newContext({ locale: "zh-CN", userAgent: UA, viewport: { width: 1440, height: 960 } });
       const page = await context.newPage();
       await page.goto(UPSTREAM.site + "/login", { waitUntil: "domcontentloaded", timeout: 60000 });
