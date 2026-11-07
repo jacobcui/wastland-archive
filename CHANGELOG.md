@@ -2,6 +2,12 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.4] — 2026-11-08
+
+### Fixed
+
+- Rolled the particle visualizer back to the lightweight 110-particle implementation for smooth playback; the fullscreen control chrome remains.
+
 ## [1.0.3] — 2026-11-08
 
 ### Added

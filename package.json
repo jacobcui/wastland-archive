@@ -1,7 +1,7 @@
 {
   "name": "wasteland-archive",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "废土馆藏 · Wasteland Archive · 本地优先的杂志 / PDF / 图片 / 媒体浏览终端",
   "author": "Jacob Cui",

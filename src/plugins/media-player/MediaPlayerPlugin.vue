@@ -257,14 +257,12 @@ let visualPhase = 0;
 let freqData = new Uint8Array(1024);
 let waveData = new Uint8Array(2048);
 
-const particles = Array.from({ length: 220 }, () => ({
+const particles = Array.from({ length: 110 }, () => ({
   angle: Math.random() * Math.PI * 2,
-  radius: 14 + Math.random() * 280,
-  speed: 0.35 + Math.random() * 1.35,
-  spin: (Math.random() - 0.5) * 0.018,
+  radius: 24 + Math.random() * 180,
+  speed: 0.25 + Math.random() * 0.9,
+  spin: (Math.random() - 0.5) * 0.012,
   band: Math.random(),
-  prevX: null,
-  prevY: null,
 }));
 
 function ensureAudioGraph() {
@@ -503,62 +501,27 @@ function drawVisual() {
   if (visualMode.value === "particles") {
     const cx = width / 2;
     const cy = height / 2;
-    const maxR = Math.min(width, height) * 0.47;
+    const maxR = Math.min(width, height) * 0.45;
     const bass = freq.slice(0, 18).reduce((sum, value) => sum + value, 0) / 18 / 255;
     const mid = freq.slice(18, 90).reduce((sum, value) => sum + value, 0) / 72 / 255;
-    const treble = freq.slice(90, 220).reduce((sum, value) => sum + value, 0) / 130 / 255;
     ctx.save();
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 1.35);
-    glow.addColorStop(0, "rgba(110, 168, 254, " + (0.05 + bass * 0.16) + ")");
-    glow.addColorStop(0.5, "rgba(194, 84, 42, " + (0.025 + mid * 0.06) + ")");
-    glow.addColorStop(1, "rgba(7, 6, 5, 0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalCompositeOperation = "lighter";
     for (const particle of particles) {
       const value = freq[Math.floor(particle.band * freq.length)] / 255;
-      particle.radius += particle.speed * (0.35 + value * 4.2 + bass * 1.4);
-      particle.angle += particle.spin + 0.002 * (1 + mid) + treble * 0.002;
+      particle.radius += particle.speed * (0.3 + value * 2.8);
+      particle.angle += particle.spin + 0.002 * (1 + mid);
       if (particle.radius > maxR) {
-        particle.radius = 8 + Math.random() * 22;
+        particle.radius = 10 + Math.random() * 20;
         particle.angle = Math.random() * Math.PI * 2;
         particle.band = Math.random();
-        particle.prevX = null;
-        particle.prevY = null;
       }
       const x = cx + Math.cos(particle.angle) * particle.radius;
-      const y = cy + Math.sin(particle.angle) * particle.radius * 0.68;
-      const size = 1 + value * 3.4 + bass * 2.4;
-      const color = particle.band > 0.68 ? amber : particle.band > 0.34 ? blue : tox;
-      if (particle.prevX !== null) {
-        ctx.globalAlpha = 0.05 + value * 0.34;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = Math.max(0.6, size * 0.55);
-        ctx.beginPath();
-        ctx.moveTo(particle.prevX, particle.prevY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 0.3 + value * 0.7;
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8 + bass * 10;
+      const y = cy + Math.sin(particle.angle) * particle.radius * 0.72;
+      const size = 1 + value * 3 + bass * 2;
+      ctx.globalAlpha = 0.25 + value * 0.75;
+      ctx.fillStyle = particle.band > 0.6 ? amber : particle.band > 0.3 ? blue : tox;
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fill();
-      particle.prevX = x;
-      particle.prevY = y;
-    }
-    ctx.shadowBlur = 0;
-    ctx.globalCompositeOperation = "source-over";
-    for (let ring = 0; ring < 3; ring += 1) {
-      const radius = maxR * (0.28 + ring * 0.22) + bass * maxR * 0.12;
-      ctx.globalAlpha = 0.06 + bass * 0.14 - ring * 0.012;
-      ctx.strokeStyle = ring === 1 ? amber : blue;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.stroke();
     }
     ctx.restore();
     return;

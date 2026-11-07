@@ -2,7 +2,7 @@
 
 <p align="center"><img src="src/assets/logo-wordmark.png" alt="Wasteland Archive logo" width="440" /></p>
 
-**Version 1.0.3** · [Changelog](CHANGELOG.md)
+**Version 1.0.4** · [Changelog](CHANGELOG.md)
 
 **Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
 
@@ -63,7 +63,7 @@ Sample: [sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4) from sampleli
 
 ### Particle visualizer
 
-The particle field reacts to the live low / mid / high frequency bands, with 220 particles, motion trails, a frequency-driven glow and animated rings. **Full screen** hides all chrome; move the pointer near the bottom to fade in file info, play state and progress, or near the top to reveal the exit button and visual selector.
+The particle field reacts to the live low / mid / high frequency bands with a lightweight 110-particle renderer. **Full screen** hides all chrome; move the pointer near the bottom to fade in file info, play state and progress, or near the top to reveal the exit button and visual selector.
 
 Example: local audiobook chapter `book1_chapter01.mp3`.
 
@@ -125,7 +125,7 @@ Useful commands:
 | `make bootstrap` | Environment check/install only |
 | `make status` | Process + login status |
 | `make down` | Stop the server |
-| `make package` | Portable web package → `release/wasteland-archive-1.0.3.tar.gz` |
+| `make package` | Portable web package → `release/wasteland-archive-1.0.4.tar.gz` |
 | `make app` | Native macOS apps (arm64 + Intel x64) → `.app` + zip + dmg |
 | `make app-win` | Windows x64 portable app → `Wasteland-Archive-win-x64.zip` |
 
@@ -138,10 +138,10 @@ make app
 Outputs (Apple Silicon + Intel):
 
 ```text
-release/native/Wasteland-Archive-mac-arm64-1.0.3.dmg
-release/native/Wasteland-Archive-mac-arm64-1.0.3.zip
-release/native/Wasteland-Archive-mac-x64-1.0.3.dmg
-release/native/Wasteland-Archive-mac-x64-1.0.3.zip
+release/native/Wasteland-Archive-mac-arm64-1.0.4.dmg
+release/native/Wasteland-Archive-mac-arm64-1.0.4.zip
+release/native/Wasteland-Archive-mac-x64-1.0.4.dmg
+release/native/Wasteland-Archive-mac-x64-1.0.4.zip
 ```
 
 Both DMGs contain the app plus an **Applications shortcut**. Open the DMG and drag **废土馆藏.app** onto Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
@@ -162,7 +162,7 @@ make app-win
 Output:
 
 ```text
-release/native/Wasteland-Archive-win-x64-1.0.3.zip
+release/native/Wasteland-Archive-win-x64-1.0.4.zip
 ```
 
 Unzip it on Windows 10/11 x64 and run **废土馆藏.exe**. This is a portable build — no installer, no Node installation. It bundles Windows Electron, ffmpeg and Playwright headless Chromium.
