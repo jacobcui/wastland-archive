@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.1] — 2026-11-07
+
+### Changed
+
+- New Wasteland Archive book-and-shield logo applied to the in-app brand mark, hero sigil, login dialog, favicon and app icons (macOS + Windows).
+- Added the wordmark to the English and Chinese READMEs.
+
 ## [1.0.0] — 2026-11-07
 
 First public version.

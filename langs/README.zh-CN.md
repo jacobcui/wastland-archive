@@ -1,6 +1,8 @@
 # 废土馆藏 · Wasteland Archive
 
-**版本 1.0.0** · [更新日志](../CHANGELOG.md)
+<p align="center"><img src="../src/assets/logo-wordmark.png" alt="废土馆藏 Logo" width="440" /></p>
+
+**版本 1.0.1** · [更新日志](../CHANGELOG.md)
 
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
