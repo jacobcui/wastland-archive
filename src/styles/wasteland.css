@@ -127,6 +127,7 @@ body {
 
 /* ---------------- shell ---------------- */
 .shell {
+  position: relative;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -135,8 +136,8 @@ body {
     radial-gradient(70% 60% at 92% 8%, rgba(255, 176, 0, 0.06), transparent 62%),
     linear-gradient(#0a0907, #080706 60%, #0a0907);
 }
-.shell--home { position: relative; }
-.home-bg {
+.shell > :where(:not(.app-bg):not(.app-bg__scrim)) { position: relative; z-index: 1; }
+.app-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -144,7 +145,13 @@ body {
   background-size: cover;
   background-repeat: no-repeat;
 }
-.home-bg__scrim {
+.app-bg.is-none { display: none; }
+.shell--plugin .app-bg__scrim {
+  background:
+    linear-gradient(180deg, rgba(8, 6, 5, 0.84) 0%, rgba(8, 6, 5, 0.64) 42%, rgba(8, 6, 5, 0.86) 100%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px);
+}
+.app-bg__scrim {
   position: fixed;
   inset: 0;
   z-index: 0;

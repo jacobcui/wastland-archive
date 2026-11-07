@@ -32,6 +32,10 @@ Log in inside the MKX plugin only. The main menu never signs in for you. Passwor
 
 ![PDF reader](docs/pdf-viewer.png)
 
+Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.com.
+
+![Sample PDF](docs/sample-pdf.png)
+
 ### Image browser
 
 ![Image browser](docs/image-browser.png)
@@ -47,6 +51,10 @@ Log in inside the MKX plugin only. The main menu never signs in for you. Passwor
 ![Media folder tree](docs/media-folder.png)
 ![Media player](docs/media-player.png)
 
+Sample: [sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4) from samplelib.com.
+
+![Sample MP4](docs/sample-mp4.png)
+
 ### Particle visualizer
 
 The particle field reacts to the live low / mid / high frequency bands. **Full screen** hides the controls and surrounding UI so the visualization fills the display; an exit button and the visual selector stay available. File metadata is no longer drawn over the canvas — it stays in the **Now Playing** strip below the player.
@@ -58,7 +66,7 @@ Example: local audiobook chapter `book1_chapter01.mp3`.
 
 ## Wasteland backgrounds
 
-Choose from four bundled original backgrounds or upload your own:
+Backgrounds apply to the home page **and every plugin page**. Choose from four bundled original backgrounds, upload your own, or select **No background image** to keep only the dark terminal backdrop:
 
 - Wasteland Dunes
 - Rust Highway
@@ -72,6 +80,9 @@ Custom images are stored locally in:
 ```
 
 ![Background picker](docs/background-picker-en.png)
+
+![Background on an inner PDF page](docs/background-inner-pdf.png)
+![No background option](docs/background-none.png)
 
 ## Quick start — Web
 

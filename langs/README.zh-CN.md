@@ -32,6 +32,10 @@
 
 ![PDF 阅读](../docs/pdf-viewer.png)
 
+示例：[sample10.pdf](https://samplelib.com/pdf/sample10.pdf)（来自 samplelib.com）。
+
+![示例 PDF](../docs/sample-pdf.png)
+
 ### 图片浏览
 
 ![图片浏览](../docs/image-browser.png)
@@ -47,6 +51,10 @@
 ![媒体目录树](../docs/media-folder.png)
 ![媒体播放](../docs/media-player.png)
 
+示例：[sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4)（来自 samplelib.com）。
+
+![示例 MP4](../docs/sample-mp4.png)
+
 ### 粒子可视化
 
 粒子会随实时低 / 中 / 高频段爆开、流动。播放器提供 **全屏** 按钮，进入后隐藏控制条和周边界面，只保留退出按钮与可视化切换；文件信息不再压在画布上，而是放在播放器下方的 **NOW PLAYING** 区域。
@@ -58,7 +66,7 @@
 
 ## 废土背景
 
-内置预设：
+背景会同时应用到首页**和所有插件内页**。可选择内置预设、上传自定义图片，或选择 **无背景图片** 只保留深色终端底色：
 
 - 废土沙丘
 - 锈色公路
@@ -74,6 +82,9 @@
 点击右上角「背景」即可选择、上传、删除、恢复默认。
 
 ![背景选择器](../docs/background-picker-en.png)
+
+![插件内页背景](../docs/background-inner-pdf.png)
+![无背景图片](../docs/background-none.png)
 
 ## Web 快速开始
 

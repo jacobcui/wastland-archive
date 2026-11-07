@@ -47,6 +47,8 @@ export default {
   "plugins.media.tag2": "音频",
   "plugins.media.tag3": "播放列表",
   "background.trigger": "背景",
+  "background.none": "无背景图片",
+  "background.noneHint": "只保留深色终端底色",
   "background.eyebrow": "WASTELAND SCREENS · 背景",
   "background.title": "换一张废土",
   "background.hint": "预设背景随项目提供；自定义图片保存到本机 {path}，不会上传外网。",

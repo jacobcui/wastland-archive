@@ -8,12 +8,14 @@ const {
   presets,
   custom,
   current,
+  isNone,
   customDir,
   loading,
   uploading,
   isDefault,
   loadBackgrounds,
   selectBackground,
+  selectNoBackground,
   resetBackground,
   uploadBackground,
   removeCustom,
@@ -76,7 +78,7 @@ async function remove(item) {
 <template>
   <div class="bg-picker">
     <button class="bg-trigger" :class="{ 'is-open': open }" @click="toggle">
-      <span class="bg-trigger__swatch" :style="{ backgroundImage: current ? 'url(' + current.url + ')' : 'none' }" />
+      <span class="bg-trigger__swatch" :class="{ 'is-none': isNone }" :style="{ backgroundImage: current ? 'url(' + current.url + ')' : 'none' }" />
       <span>{{ t("background.trigger") }}</span>
     </button>
 
@@ -92,6 +94,15 @@ async function remove(item) {
       </header>
 
       <p class="bg-panel__hint">{{ t("background.hint", { path: customDir }) }}</p>
+
+      <button class="bg-none-card" :class="{ 'is-active': isNone }" @click="selectNoBackground">
+        <span class="bg-none-card__swatch">∅</span>
+        <span class="bg-none-card__body">
+          <b>{{ t("background.none") }}</b>
+          <small>{{ t("background.noneHint") }}</small>
+        </span>
+        <span v-if="isNone" class="bg-card__badge">{{ t("background.inUse") }}</span>
+      </button>
 
       <div class="bg-group-label">{{ t("background.presets") }}</div>
       <div class="bg-grid">
@@ -163,6 +174,19 @@ async function remove(item) {
 }
 .bg-trigger:hover, .bg-trigger.is-open { border-color: var(--amber); color: var(--amber); }
 .bg-trigger__swatch { width: 22px; height: 22px; display: block; border: 1px solid var(--line); background-size: cover; background-position: center; }
+.bg-trigger__swatch.is-none {
+  position: relative;
+  background: repeating-linear-gradient(135deg, #1b1712 0 4px, #0d0b08 4px 8px);
+}
+.bg-trigger__swatch.is-none::after {
+  content: "∅";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
 .bg-backdrop { position: fixed; inset: 0; z-index: 54; background: rgba(4, 3, 2, 0.48); backdrop-filter: blur(2px); }
 .bg-panel {
   position: absolute;
@@ -183,6 +207,34 @@ async function remove(item) {
 .bg-panel__hint { margin: 10px 0 14px; font-size: 11px; line-height: 1.8; color: var(--muted); }
 .bg-panel__hint code, .bg-panel__path code { color: var(--amber); font-family: var(--mono); font-size: 10px; }
 .bg-group-label { margin: 12px 0 8px; color: var(--amber); font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; }
+.bg-none-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  background: rgba(11, 9, 7, 0.72);
+  color: var(--bone-dim);
+  cursor: pointer;
+  text-align: left;
+}
+.bg-none-card:hover, .bg-none-card.is-active { border-color: var(--amber); }
+.bg-none-card__swatch {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 18px;
+  background: repeating-linear-gradient(135deg, #1b1712 0 4px, #0d0b08 4px 8px);
+}
+.bg-none-card__body { display: flex; flex-direction: column; gap: 2px; }
+.bg-none-card__body b { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--bone); }
+.bg-none-card__body small { font-size: 9.5px; color: var(--muted); }
+.bg-none-card .bg-card__badge { position: static; margin-left: auto; }
 .bg-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .bg-card { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 4px; border: 1px solid var(--line); background: #0b0907; color: var(--bone-dim); cursor: pointer; text-align: left; }
 .bg-card:hover, .bg-card.is-active { border-color: var(--amber); }

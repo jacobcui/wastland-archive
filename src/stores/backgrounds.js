@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 
 const STORAGE_KEY = "wasteland.background.v1";
 const DEFAULT_ID = "preset:wasteland-dunes.svg";
+const NONE_ID = "none";
 const DEFAULT_URL = "/backgrounds/preset/wasteland-dunes.svg";
 const defaultItem = { id: DEFAULT_ID, kind: "preset", name: "废土沙丘", description: "落日、台地与荒原公路", url: DEFAULT_URL };
 
@@ -14,8 +15,12 @@ const uploading = ref(false);
 const loaded = ref(false);
 
 const all = computed(() => [...presets.value, ...custom.value]);
-const current = computed(() => all.value.find((item) => item.id === selectedId.value) || presets.value[0] || defaultItem);
-const backgroundStyle = computed(() => ({ backgroundImage: "url(" + JSON.stringify(current.value.url) + ")" }));
+const isNone = computed(() => selectedId.value === NONE_ID);
+const current = computed(() => {
+  if (isNone.value) return null;
+  return all.value.find((item) => item.id === selectedId.value) || presets.value[0] || defaultItem;
+});
+const backgroundStyle = computed(() => (isNone.value ? {} : { backgroundImage: "url(" + JSON.stringify(current.value.url) + ")" }));
 const isDefault = computed(() => !selectedId.value || selectedId.value === (presets.value[0] && presets.value[0].id) || selectedId.value === DEFAULT_ID);
 
 function persist() {
@@ -34,7 +39,7 @@ async function loadBackgrounds() {
     presets.value = Array.isArray(data.presets) ? data.presets : [];
     custom.value = Array.isArray(data.custom) ? data.custom : [];
     customDir.value = data.customDir || customDir.value;
-    if (!all.value.some((item) => item.id === selectedId.value)) {
+    if (!isNone.value && !all.value.some((item) => item.id === selectedId.value)) {
       selectedId.value = data.defaultId || (presets.value[0] && presets.value[0].id) || DEFAULT_ID;
       persist();
     }
@@ -49,6 +54,11 @@ async function loadBackgrounds() {
 function selectBackground(item) {
   if (!item) return;
   selectedId.value = item.id;
+  persist();
+}
+
+function selectNoBackground() {
+  selectedId.value = NONE_ID;
   persist();
 }
 
@@ -94,6 +104,7 @@ export function useBackgrounds() {
     custom,
     current,
     selectedId,
+    isNone,
     customDir,
     loading,
     uploading,
@@ -102,6 +113,7 @@ export function useBackgrounds() {
     isDefault,
     loadBackgrounds,
     selectBackground,
+    selectNoBackground,
     resetBackground,
     uploadBackground,
     removeCustom,

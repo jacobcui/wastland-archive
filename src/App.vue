@@ -20,7 +20,7 @@ function parseHash() {
 
 const route = ref(parseHash());
 const componentCache = new Map();
-const { backgroundStyle, loadBackgrounds } = useBackgrounds();
+const { backgroundStyle, isNone, loadBackgrounds } = useBackgrounds();
 
 function pluginName(plugin) {
   return plugin ? t(plugin.nameKey) : "";
@@ -80,11 +80,11 @@ onBeforeUnmount(() => {
 
 <template>
   <v-app>
-    <div class="shell" :class="{ 'shell--home': !activePlugin }">
-      <template v-if="!activePlugin">
-        <div class="home-bg" :style="backgroundStyle" />
-        <div class="home-bg__scrim" />
+    <div class="shell" :class="{ 'shell--home': !activePlugin, 'shell--plugin': Boolean(activePlugin) }">
+      <div class="app-bg" :class="{ 'is-none': isNone }" :style="backgroundStyle" />
+      <div v-if="!isNone" class="app-bg__scrim" />
 
+      <template v-if="!activePlugin">
         <header class="topbar topbar--shell">
           <button class="brand" @click="goHome">
             <div class="brand__mark brand__mark--svg"><WastelandMark /></div>
