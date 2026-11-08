@@ -212,7 +212,7 @@ const hlsSessions = new Map();
 const HLS_SEGMENT_SECONDS = 2;
 const HLS_MEMORY_LIMIT = 128 * 1024 * 1024;
 
-function probeVideoDuration(filePath) {
+function probeMediaInfo(filePath) {
   return new Promise((resolve) => {
     let stderr = "";
     let settled = false;
@@ -226,30 +226,88 @@ function probeVideoDuration(filePath) {
     });
     const timer = setTimeout(() => {
       try { child.kill("SIGKILL"); } catch {}
-      done(0);
+      done({ duration: 0, videoCodec: "", audioCodec: "" });
     }, 10000);
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + chunk.toString()).slice(-30000);
     });
-    child.on("error", () => { clearTimeout(timer); done(0); });
+    child.on("error", () => { clearTimeout(timer); done({ duration: 0, videoCodec: "", audioCodec: "" }); });
     child.on("close", () => {
       clearTimeout(timer);
       const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
-      if (!match) return done(0);
-      done(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]));
+      const video = stderr.match(/Stream[^\n]*: Video: ([a-zA-Z0-9_]+)/);
+      const audio = stderr.match(/Stream[^\n]*: Audio: ([a-zA-Z0-9_]+)/);
+      done({
+        duration: match ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : 0,
+        videoCodec: video ? video[1].toLowerCase() : "",
+        audioCodec: audio ? audio[1].toLowerCase() : "",
+      });
     });
   });
 }
 
-function createHlsSession(filePath, duration) {
+async function probeKeyframeTimes(filePath, duration) {
+  const parse = (text) => {
+    const times = [];
+    for (const line of String(text || "").split(/\r?\n/)) {
+      const match = line.match(/pts_time:(\d+(?:\.\d+)?)/) || line.match(/^(-?\d+(?:\.\d+)?)$/);
+      if (!match) continue;
+      const value = Number(match[1]);
+      if (Number.isFinite(value) && value > 0.1 && value < duration - 0.1) times.push(value);
+    }
+    return times;
+  };
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-skip_frame", "nokey",
+      "-show_entries", "frame=pts_time",
+      "-of", "csv=p=0",
+      filePath,
+    ], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+    return [...new Set(parse(stdout))].sort((a, b) => a - b);
+  } catch {}
+  try {
+    const { stderr } = await execFileAsync(FFMPEG_BIN, [
+      "-hide_banner",
+      "-loglevel", "info",
+      "-skip_frame", "nokey",
+      "-i", filePath,
+      "-map", "0:v:0",
+      "-vf", "showinfo",
+      "-an",
+      "-f", "null",
+      "-",
+    ], { timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
+    return [...new Set(parse(stderr))].sort((a, b) => a - b);
+  } catch (error) {
+    return [...new Set(parse(String(error && error.stderr ? error.stderr : "")))].sort((a, b) => a - b);
+  }
+}
+
+function createHlsSession(filePath, duration, keyframes = [], { copyVideo = false, copyAudio = false } = {}) {
   const id = crypto.randomBytes(12).toString("hex");
   const total = Number(duration) || 0;
+  const boundaries = [0];
+  for (const value of keyframes) {
+    if (value > boundaries[boundaries.length - 1] + 0.25 && value < total - 0.1) boundaries.push(value);
+  }
+  if (boundaries.length === 1) {
+    for (let value = HLS_SEGMENT_SECONDS; value < total - 0.1; value += HLS_SEGMENT_SECONDS) boundaries.push(value);
+  }
+  boundaries.push(total);
+  const starts = boundaries.slice(0, -1);
+  const durations = starts.map((start, index) => Math.max(0.1, boundaries[index + 1] - start));
   const session = {
     id,
     filePath,
     duration: total,
-    segmentSeconds: HLS_SEGMENT_SECONDS,
-    count: Math.max(1, Math.ceil(total / HLS_SEGMENT_SECONDS)),
+    starts,
+    durations,
+    count: starts.length,
+    copyVideo,
+    copyAudio,
     segments: new Map(),
     generating: new Map(),
     bytes: 0,
@@ -261,17 +319,16 @@ function createHlsSession(filePath, duration) {
 }
 
 function hlsPlaylist(session) {
+  const target = Math.max(2, Math.ceil(Math.max(...session.durations)));
   const lines = [
     "#EXTM3U",
     "#EXT-X-VERSION:3",
-    "#EXT-X-TARGETDURATION:2",
+    "#EXT-X-TARGETDURATION:" + target,
     "#EXT-X-MEDIA-SEQUENCE:0",
     "#EXT-X-PLAYLIST-TYPE:VOD",
   ];
   for (let index = 0; index < session.count; index += 1) {
-    const start = index * session.segmentSeconds;
-    const duration = Math.min(session.segmentSeconds, Math.max(0.1, session.duration - start));
-    lines.push("#EXTINF:" + duration.toFixed(3) + ",");
+    lines.push("#EXTINF:" + session.durations[index].toFixed(3) + ",");
     lines.push("/api/media-library/hls/" + session.id + "/seg/" + index + ".ts");
   }
   lines.push("#EXT-X-ENDLIST");
@@ -302,8 +359,8 @@ function generateHlsSegment(session, index) {
     return Promise.resolve(session.segments.get(index));
   }
   if (session.generating.has(index)) return session.generating.get(index);
-  const start = index * session.segmentSeconds;
-  const duration = Math.min(session.segmentSeconds, Math.max(0.1, session.duration - start));
+  const start = session.starts[index];
+  const duration = session.durations[index];
   const args = [
     "-hide_banner",
     "-loglevel", "warning",
@@ -313,12 +370,8 @@ function generateHlsSegment(session, index) {
     "-t", duration.toFixed(3),
     "-map", "0:v:0",
     "-map", "0:a:0?",
-    "-c:v", "libx264",
-    "-preset", "veryfast",
-    "-crf", "23",
-    "-pix_fmt", "yuv420p",
-    "-c:a", "aac",
-    "-b:a", "128k",
+    ...(session.copyVideo ? ["-c:v", "copy"] : ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p"]),
+    ...(session.copyAudio ? ["-c:a", "copy"] : ["-c:a", "aac", "-b:a", "128k"]),
     "-muxdelay", "0",
     "-muxpreload", "0",
     "-output_ts_offset", start.toFixed(3),
@@ -759,10 +812,15 @@ app.post("/api/media-library/items/:id/transcode", async (req, res) => {
   const info = mediaFileInfo(req.params.id);
   if (!info) return res.status(404).json({ ok: false, error: "媒体文件不存在" });
   try {
-    let duration = await probeVideoDuration(info.absolutePath);
+    const mediaInfo = await probeMediaInfo(info.absolutePath);
+    let duration = mediaInfo.duration;
     if (!(duration > 0)) duration = Number(req.body && req.body.duration) || 0;
     if (!(duration > 0)) return res.status(400).json({ ok: false, error: "无法读取视频时长" });
-    const session = createHlsSession(info.absolutePath, duration);
+    const keyframes = await probeKeyframeTimes(info.absolutePath, duration);
+    const session = createHlsSession(info.absolutePath, duration, keyframes, {
+      copyVideo: mediaInfo.videoCodec === "h264",
+      copyAudio: ["aac", "mp3"].includes(mediaInfo.audioCodec),
+    });
     res.json({
       ok: true,
       id: session.id,

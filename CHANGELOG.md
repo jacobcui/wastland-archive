@@ -2,6 +2,14 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.8] — 2026-11-08
+
+### Fixed
+
+- Runtime HLS playback now aligns segments to source keyframes instead of fixed 2-second cuts, avoiding frame overlap/skips at segment boundaries.
+- H.264/AAC sources are remuxed with stream copy instead of re-encoded with libx264, greatly reducing CPU and avoiding timestamp/frame judder. Unsupported codecs still use on-demand transcoding.
+- Fallback remains 2-second segments if keyframe probing is unavailable, so a failed probe cannot produce a full-film segment.
+
 ## [1.1.7] — 2026-11-08
 
 ### Changed
