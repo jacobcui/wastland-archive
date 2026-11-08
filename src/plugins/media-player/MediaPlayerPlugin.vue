@@ -178,6 +178,136 @@ let folderRemoveTimer = null;
 let persistTimer = null;
 const probe = document.createElement("video");
 
+const subtitleInput = ref(null);
+const subtitleCues = ref([]);
+const subtitleName = ref("");
+const subtitleVisible = ref(true);
+let subtitleLoadToken = 0;
+
+const activeSubtitleText = computed(() => {
+  if (!subtitleVisible.value || active.value?.kind !== "video" || !subtitleCues.value.length) return "";
+  const now = (Number(player.currentTime) || 0) * 1000;
+  return subtitleCues.value
+    .filter((cue) => now >= cue.start && now < cue.end)
+    .map((cue) => cue.text)
+    .join("\n");
+});
+
+function parseSubtitleTime(value) {
+  const match = String(value || "").trim().match(/(?:(\d+):)?(\d{1,2}):(\d{2})[,.](\d{1,3})/);
+  if (!match) return NaN;
+  const hours = Number(match[1] || 0);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  const millis = Number(String(match[4] || "0").padEnd(3, "0"));
+  return ((hours * 60 + minutes) * 60 + seconds) * 1000 + millis;
+}
+
+function parseSubtitleText(text) {
+  const blocks = String(text || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim().split(/\n{2,}/);
+  const cues = [];
+  for (const block of blocks) {
+    const lines = block.split("\n").map((line) => line.trim());
+    const timingIndex = lines.findIndex((line) => line.includes("-->"));
+    if (timingIndex < 0) continue;
+    const [startRaw, endRaw] = lines[timingIndex].split("-->");
+    const start = parseSubtitleTime(startRaw);
+    const end = parseSubtitleTime((endRaw || "").trim().split(/\s+/)[0]);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const textLine = lines.slice(timingIndex + 1).join("\n").replace(/<[^>]*>/g, "").replace(/\{\\[^}]+\}/g, "").trim();
+    if (textLine) cues.push({ start, end, text: textLine });
+  }
+  return cues.sort((a, b) => a.start - b.start);
+}
+
+function applySubtitle(text, name, { persist: save = false, quiet = false } = {}) {
+  const cues = parseSubtitleText(text);
+  if (!cues.length) {
+    if (!quiet) notify("没有解析到字幕条目；请确认是 SRT / VTT 文件", "error");
+    return false;
+  }
+  subtitleCues.value = cues;
+  subtitleName.value = name || "字幕";
+  subtitleVisible.value = true;
+  if (save && active.value) {
+    active.value.subtitleText = text;
+    active.value.subtitleName = subtitleName.value;
+    persist(active.value);
+  }
+  if (!quiet) notify("已加载字幕 · " + subtitleName.value, "success");
+  return true;
+}
+
+function toggleSubtitle() {
+  if (!subtitleCues.value.length) {
+    pickSubtitle();
+    return;
+  }
+  subtitleVisible.value = !subtitleVisible.value;
+}
+
+function pickSubtitle() {
+  if (subtitleInput.value) subtitleInput.value.click();
+}
+
+async function onSubtitleChange(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  if (!file || !active.value || active.value.kind !== "video") return;
+  try {
+    const text = await file.text();
+    subtitleLoadToken += 1;
+    applySubtitle(text, file.name, { persist: true });
+  } catch (error) {
+    notify("读取字幕失败: " + error.message, "error");
+  }
+}
+
+async function findSiblingSubtitle(row) {
+  const folder = folders.value.find((item) => item.id === row.folderId);
+  if (!folder || !folder.handle) return null;
+  if (!(await ensureReadPermission(folder.handle))) return null;
+  const parts = String(row.relativePath || row.name || "").split("/").filter(Boolean);
+  if (!parts.length) return null;
+  const fileName = parts.pop();
+  let dir = folder.handle;
+  for (const part of parts) dir = await dir.getDirectoryHandle(part);
+  const base = fileName.replace(/\.[^.]+$/, "");
+  const candidates = [];
+  for await (const entry of dir.values()) {
+    if (entry.kind !== "file" || !/\.(srt|vtt)$/i.test(entry.name)) continue;
+    const stem = entry.name.replace(/\.[^.]+$/, "");
+    if (stem === base || stem.startsWith(base + ".")) {
+      candidates.push({ entry, exact: stem === base });
+    }
+  }
+  candidates.sort((a, b) => Number(b.exact) - Number(a.exact));
+  for (const candidate of candidates) {
+    try {
+      const file = await candidate.entry.getFile();
+      return { text: await file.text(), name: candidate.entry.name };
+    } catch {}
+  }
+  return null;
+}
+
+async function loadSubtitleForRow(row, token) {
+  if (!row || row.kind !== "video") return;
+  if (row.subtitleText) {
+    if (token === subtitleLoadToken && active.value && active.value.id === row.id) {
+      applySubtitle(row.subtitleText, row.subtitleName || "字幕", { quiet: true });
+    }
+    return;
+  }
+  try {
+    const found = await findSiblingSubtitle(row);
+    if (!found || token !== subtitleLoadToken || !active.value || active.value.id !== row.id) return;
+    if (applySubtitle(found.text, found.name, { persist: true, quiet: true })) {
+      notify("已自动加载同名字幕 · " + found.name, "info");
+    }
+  } catch {}
+}
+
 const totalBytes = computed(() => media.value.reduce((sum, row) => sum + (row.size || 0), 0));
 
 const history = computed(() =>
@@ -1012,6 +1142,11 @@ async function openMedia(row, { autoplay = false } = {}) {
   fallbackForId = "";
   playRequested = autoplay;
   active.value = row;
+  subtitleLoadToken += 1;
+  subtitleCues.value = [];
+  subtitleName.value = "";
+  subtitleVisible.value = true;
+  if (row.kind === "video") void loadSubtitleForRow(row, subtitleLoadToken);
   pendingAutoplay.value = autoplay;
   pendingSeek.value = resumePosition(row);
   lastPositionSave = 0;
@@ -2162,6 +2297,7 @@ onBeforeUnmount(() => {
                   @error="onMediaError"
                 ></audio>
               </div>
+              <div v-if="active.kind === 'video' && activeSubtitleText" class="media-subtitle">{{ activeSubtitleText }}</div>
               <div v-if="player.loading && !player.error" class="media-overlay media-overlay--loading">
                 <div class="led led--amber">
                   <i />{{ streamBusy ? streamStatus || "正在准备流式播放…" : decoding ? decodeStatus || "内置解码器处理中…" : "正在读取媒体 …" }}
@@ -2218,6 +2354,14 @@ onBeforeUnmount(() => {
                 <option :value="1.5">1.5×</option>
                 <option :value="2">2×</option>
               </select>
+              <button
+                v-if="active.kind === 'video'"
+                class="media-icon-btn media-cc"
+                :class="{ 'is-on': subtitleCues.length && subtitleVisible }"
+                :title="subtitleCues.length ? (subtitleVisible ? '隐藏字幕' : '显示字幕') : '加载字幕'"
+                @click="toggleSubtitle"
+              >CC</button>
+              <button v-if="active.kind === 'video'" class="media-icon-btn" title="加载 SRT / VTT 字幕" @click="pickSubtitle">字幕</button>
               <button v-if="active.kind === 'video'" class="btn-ghost" @click="toggleFullscreen">全屏</button>
               <button class="btn-ghost" @click="closePlayer">关闭</button>
             </div>
@@ -2227,6 +2371,10 @@ onBeforeUnmount(() => {
             <div>
               <div class="eyebrow">NOW PLAYING · 当前媒体</div>
               <div class="media-now__title">{{ active.name }}</div>
+              <div v-if="active.kind === 'video' && subtitleName" class="media-now__subtitle">
+                CC · {{ subtitleName }}
+                <button @click="toggleSubtitle">{{ subtitleVisible ? "隐藏" : "显示" }}</button>
+              </div>
             </div>
             <div class="media-now__meta">
               {{ active.kind === "video" ? "VIDEO" : "AUDIO" }} · {{ active.type || "未知类型" }} · {{ formatBytes(active.size) }}
@@ -2379,6 +2527,13 @@ onBeforeUnmount(() => {
         accept="video/*,audio/*,.mp4,.m4v,.webm,.mov,.mkv,.ts,.flv,.f4v,.mxf,.avi,.3gp,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.wma,.alac"
         @change="onFolderChange"
       />
+      <input
+        ref="subtitleInput"
+        type="file"
+        hidden
+        accept=".srt,.vtt,text/vtt,application/x-subrip,text/plain"
+        @change="onSubtitleChange"
+      />
       <p class="media-note">
         播放列表和文件都只在本机；添加文件夹时会递归扫描，跳过非媒体文件。“移除目录”只移除媒体库副本，不删除磁盘上的文件。浏览器原生不支持时会自动边转码边播放，没有本机 ffmpeg 时才使用内置解码器。
       </p>
@@ -2481,6 +2636,21 @@ onBeforeUnmount(() => {
   object-fit: contain;
   background: #000;
   cursor: pointer;
+}
+.media-subtitle {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  bottom: 9%;
+  z-index: 2;
+  pointer-events: none;
+  text-align: center;
+  white-space: pre-line;
+  color: #fff;
+  font-size: clamp(17px, 2vw, 28px);
+  font-weight: 600;
+  line-height: 1.35;
+  text-shadow: 0 2px 7px #000, 0 0 3px #000, 0 1px 2px #000;
 }
 .media-audio {
   position: relative;
@@ -2721,6 +2891,8 @@ onBeforeUnmount(() => {
 .media-seek { flex: 1 1 180px; min-width: 120px; accent-color: var(--amber); }
 .media-volume { flex: 0 0 74px; accent-color: #6ea8fe; }
 .media-icon-btn { flex: 0 0 auto; border: 0; background: transparent; color: var(--bone-dim); font-size: 15px; cursor: pointer; padding: 2px 3px; }
+.media-cc { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; border: 1px solid var(--line-soft); padding: 3px 5px; }
+.media-cc.is-on { border-color: #6ea8fe; color: #6ea8fe; background: rgba(110, 168, 254, 0.1); }
 .media-rate {
   flex: 0 0 auto;
   border: 1px solid var(--line);
@@ -2740,6 +2912,8 @@ onBeforeUnmount(() => {
   padding: 0 2px;
 }
 .media-now__title { margin-top: 4px; font-size: 14px; color: var(--bone); }
+.media-now__subtitle { margin-top: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.04em; color: var(--muted); }
+.media-now__subtitle button { border: 0; background: transparent; color: #6ea8fe; font-family: var(--mono); font-size: 9.5px; cursor: pointer; padding: 0 0 0 5px; }
 .media-now__meta { font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
 
 .media-playlist { position: sticky; top: 18px; padding: 16px; max-height: calc(100vh - 36px); overflow: auto; }
@@ -2989,6 +3163,7 @@ onBeforeUnmount(() => {
 .media-player:fullscreen { display: flex; flex-direction: column; background: #050403; }
 .media-player:fullscreen .media-stage { flex: 1; min-height: 0; }
 .media-player:fullscreen .media-stage video { width: 100%; height: 100%; max-height: none; }
+.media-player:fullscreen .media-subtitle { bottom: 7%; font-size: clamp(20px, 2.6vw, 38px); }
 
 @media (max-width: 1080px) {
   .media-layout { grid-template-columns: 1fr; }

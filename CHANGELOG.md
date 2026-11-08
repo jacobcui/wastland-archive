@@ -2,6 +2,12 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.8] — 2026-11-08
+
+### Added
+
+- Video subtitles: auto-load a sibling `.srt` / `.vtt` for folder imports, manual subtitle selection, a CC show/hide toggle, and an overlay that also works in fullscreen.
+
 ## [1.0.7] — 2026-11-08
 
 ### Added
