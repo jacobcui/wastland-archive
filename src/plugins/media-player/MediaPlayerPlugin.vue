@@ -79,6 +79,15 @@ let storedPositions = {};
 try { storedPositions = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}") || {}; } catch {}
 const resumePositions = reactive(storedPositions);
 
+const HISTORY_HIDDEN_KEY = "wasteland.media.history-hidden.v1";
+let storedHidden = {};
+try { storedHidden = JSON.parse(localStorage.getItem(HISTORY_HIDDEN_KEY) || "{}") || {}; } catch {}
+const historyHidden = reactive(storedHidden);
+
+function writeHistoryHidden() {
+  try { localStorage.setItem(HISTORY_HIDDEN_KEY, JSON.stringify(historyHidden)); } catch {}
+}
+
 function writeResumePositions() {
   try { localStorage.setItem(POSITION_KEY, JSON.stringify(resumePositions)); } catch {}
 }
@@ -173,10 +182,20 @@ const totalBytes = computed(() => media.value.reduce((sum, row) => sum + (row.si
 
 const history = computed(() =>
   media.value
-    .filter((row) => (row.lastPlayedAt || 0) > 0 || resumePositions[row.id])
+    .filter((row) => !historyHidden[row.id] && ((row.lastPlayedAt || 0) > 0 || resumePositions[row.id]))
     .sort((a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0))
     .slice(0, 8)
 );
+
+function removeHistory(row) {
+  if (!row) return;
+  historyHidden[row.id] = true;
+  writeHistoryHidden();
+  forgetPosition(row);
+  row.lastPlayedAt = 0;
+  persist(row);
+  notify("已从播放历史移除（文件仍保留）", "info");
+}
 
 function historyPosition(row) {
   return resumePosition(row);
@@ -198,6 +217,81 @@ function historyMeta(row) {
 
 function playHistory(row) {
   openMedia(row, { autoplay: true });
+}
+
+const infoRow = ref(null);
+const infoRootInput = ref("");
+const infoPathInput = ref("");
+const infoFolder = computed(() => {
+  if (!infoRow.value || !infoRow.value.folderId) return null;
+  return folders.value.find((folder) => folder.id === infoRow.value.folderId) || null;
+});
+
+function mediaDisplayPath(row) {
+  if (!row) return "";
+  if (row.absolutePath) return row.absolutePath;
+  const folder = folders.value.find((item) => item.id === row.folderId);
+  const relative = String(row.relativePath || row.name || "");
+  if (folder && folder.rootPath) {
+    return folder.rootPath.replace(/\/+$/, "") + "/" + relative.replace(/^\/+/, "");
+  }
+  if (folder) return folder.name + "/" + relative;
+  return row.name;
+}
+
+function openInfo(row) {
+  infoRow.value = row;
+  const folder = folders.value.find((item) => item.id === row.folderId);
+  infoRootInput.value = folder && folder.rootPath ? folder.rootPath : "";
+  infoPathInput.value = row.absolutePath || mediaDisplayPath(row);
+}
+
+function closeInfo() {
+  infoRow.value = null;
+  infoRootInput.value = "";
+  infoPathInput.value = "";
+}
+
+async function saveInfoPath() {
+  const row = infoRow.value;
+  if (!row) return;
+  const folder = folders.value.find((item) => item.id === row.folderId);
+  try {
+    if (folder) {
+      folder.rootPath = infoRootInput.value.trim().replace(/\/+$/, "");
+      await idbPut("mediaFolders", toRaw(folder), folder.id);
+      notify("已保存目录根路径", "success");
+    } else {
+      row.absolutePath = infoPathInput.value.trim();
+      await idbPut("media", toRaw(row), row.id);
+      notify("已保存文件路径", "success");
+    }
+  } catch (error) {
+    notify("保存路径失败: " + error.message, "error");
+  }
+}
+
+async function copyInfoPath() {
+  const path = mediaDisplayPath(infoRow.value);
+  if (!path) return;
+  try {
+    await navigator.clipboard.writeText(path);
+    notify("路径已复制", "success");
+  } catch {
+    try {
+      const helper = document.createElement("textarea");
+      helper.value = path;
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand("copy");
+      helper.remove();
+      notify("路径已复制", "success");
+    } catch {
+      notify("复制失败，请手动选择路径", "error");
+    }
+  }
 }
 
 function mediaPath(row) {
@@ -934,22 +1028,6 @@ async function openMedia(row, { autoplay = false } = {}) {
     source = await resolveStoredSource(row);
     if (source) fileCache.set(row.id, source);
   }
-  const sourceBytes = source ? source.size || source.byteLength || 0 : 0;
-  if (row.kind === "video" && sourceBytes > 200 * 1024 * 1024) {
-    player.error = null;
-    player.ready = false;
-    player.playing = false;
-    if (!autoplay) {
-      player.loading = false;
-      return;
-    }
-    fallbackForId = row.id;
-    player.loading = true;
-    pendingAutoplay.value = true;
-    await nextTick();
-    runAutoFallback(row);
-    return;
-  }
   if (source && source instanceof Blob && source.type) {
     objectUrl.value = URL.createObjectURL(source);
   } else if (source) {
@@ -1401,6 +1479,10 @@ function onPlay(event) {
   }
   if (active.value) {
     active.value.lastPlayedAt = Date.now();
+    if (historyHidden[active.value.id]) {
+      delete historyHidden[active.value.id];
+      writeHistoryHidden();
+    }
     const row = media.value.find((item) => item.id === active.value.id);
     if (row) row.lastPlayedAt = active.value.lastPlayedAt;
     persistSoon(active.value);
@@ -2176,7 +2258,7 @@ onBeforeUnmount(() => {
               <span class="eyebrow">HISTORY · 播放历史</span>
               <span class="eyebrow">{{ history.length }}</span>
             </div>
-            <button
+            <div
               v-for="row in history"
               :key="'history-' + row.id"
               class="media-history__row"
@@ -2189,7 +2271,8 @@ onBeforeUnmount(() => {
                 <span class="media-history__meta">{{ historyMeta(row) }}</span>
                 <span class="media-history__bar"><i :style="{ width: historyPercent(row) + '%' }" /></span>
               </span>
-            </button>
+              <button class="media-history__remove" title="从播放历史移除" @click.stop="removeHistory(row)">×</button>
+            </div>
           </div>
 
           <div class="hazard" style="opacity: 0.45; margin: 12px 0"></div>
@@ -2247,6 +2330,7 @@ onBeforeUnmount(() => {
                     <span v-if="active && active.id === node.row.id && player.playing"> · PLAYING</span>
                   </div>
                 </div>
+                <button class="media-row__info" title="查看文件信息 / 路径" @click.stop="openInfo(node.row)">INFO</button>
                 <button
                   class="media-row__remove"
                   :class="{ 'is-confirm': removeCandidate === node.row.id }"
@@ -2299,6 +2383,41 @@ onBeforeUnmount(() => {
         播放列表和文件都只在本机；添加文件夹时会递归扫描，跳过非媒体文件。“移除目录”只移除媒体库副本，不删除磁盘上的文件。浏览器原生不支持时会自动边转码边播放，没有本机 ffmpeg 时才使用内置解码器。
       </p>
     </section>
+
+    <div v-if="infoRow" class="media-info" @click.self="closeInfo">
+      <div class="media-info__panel panel">
+        <div class="media-info__head">
+          <div>
+            <div class="eyebrow">FILE INFO · 文件信息</div>
+            <div class="media-info__name">{{ infoRow.name }}</div>
+            <div class="media-info__meta">{{ infoRow.kind === "video" ? "VIDEO" : "AUDIO" }} · {{ infoRow.type || "未知类型" }} · {{ formatBytes(infoRow.size) }}</div>
+          </div>
+          <button class="media-info__close" title="关闭" @click="closeInfo">×</button>
+        </div>
+
+        <label class="media-info__label">文件路径</label>
+        <div class="media-info__path">
+          <input :value="mediaDisplayPath(infoRow)" readonly @focus="$event.target.select()" />
+          <button class="media-info__copy" @click="copyInfoPath">复制</button>
+        </div>
+
+        <template v-if="infoFolder">
+          <label class="media-info__label">目录根路径</label>
+          <input v-model="infoRootInput" class="media-info__input" placeholder="/Volumes/MYBAK2/Movies" />
+          <p class="media-info__hint">浏览器不会暴露原始绝对路径。填写目录根路径后，会自动拼出每首歌 / 每部片的完整路径。</p>
+        </template>
+        <template v-else>
+          <label class="media-info__label">文件完整路径</label>
+          <input v-model="infoPathInput" class="media-info__input" placeholder="/Volumes/MYBAK2/Movies/file.mp4" />
+          <p class="media-info__hint">浏览器不会暴露原始绝对路径；可粘贴完整路径并保存，之后从这里复制。</p>
+        </template>
+
+        <div class="media-info__actions">
+          <button class="btn-hazard" @click="saveInfoPath">保存路径</button>
+          <button class="btn-ghost" @click="closeInfo">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -2683,6 +2802,18 @@ onBeforeUnmount(() => {
 .media-history__meta { font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .media-history__bar { height: 2px; margin-top: 3px; background: rgba(110, 168, 254, 0.12); }
 .media-history__bar i { display: block; height: 100%; background: #6ea8fe; }
+.media-history__row { cursor: pointer; }
+.media-history__remove {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+.media-history__remove:hover { color: var(--amber); border-color: var(--line-soft); }
 .media-folder-status {
   margin-bottom: 10px;
   padding: 6px 8px;
@@ -2739,7 +2870,7 @@ onBeforeUnmount(() => {
 .media-list { display: flex; flex-direction: column; gap: 7px; }
 .media-row {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto;
   gap: 9px;
   align-items: center;
   padding: 8px;
@@ -2764,6 +2895,7 @@ onBeforeUnmount(() => {
 .media-row__body { min-width: 0; }
 .media-row__name { font-size: 12px; color: var(--bone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-row__meta { margin-top: 3px; font-size: 10px; letter-spacing: 0.05em; color: var(--muted); }
+.media-row__info,
 .media-row__remove {
   border: 1px solid var(--line-soft);
   background: transparent;
@@ -2773,6 +2905,7 @@ onBeforeUnmount(() => {
   padding: 4px 5px;
   cursor: pointer;
 }
+.media-row__info:hover { border-color: #6ea8fe; color: #6ea8fe; }
 .media-row__remove:hover,
 .media-row__remove.is-confirm { border-color: var(--danger); color: var(--danger); }
 
@@ -2788,6 +2921,65 @@ onBeforeUnmount(() => {
 .media-formats__note { margin: 10px 0 0; font-size: 10px; line-height: 1.7; color: var(--muted); }
 .media-playlist__note { margin: 14px 0 0; padding-top: 10px; border-top: 1px dashed var(--line-soft); font-size: 10px; line-height: 1.7; color: var(--muted); }
 .media-note { margin-top: 24px; font-size: 11px; line-height: 1.8; letter-spacing: 0.06em; color: var(--muted); }
+.media-info {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 3, 2, 0.78);
+  backdrop-filter: blur(3px);
+}
+.media-info__panel {
+  width: min(620px, 100%);
+  padding: 20px;
+  background: #0d0b08;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+}
+.media-info__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.media-info__name { margin-top: 7px; font-family: var(--display); font-size: 24px; color: var(--bone); word-break: break-all; }
+.media-info__meta { margin-top: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; color: var(--muted); }
+.media-info__close {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.media-info__close:hover { border-color: #6ea8fe; color: #6ea8fe; }
+.media-info__label { display: block; margin-top: 18px; margin-bottom: 6px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.media-info__path { display: flex; gap: 6px; }
+.media-info__path input,
+.media-info__input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #070605;
+  color: var(--bone-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 9px;
+  outline: none;
+}
+.media-info__path input:focus,
+.media-info__input:focus { border-color: #6ea8fe; }
+.media-info__copy {
+  flex: 0 0 auto;
+  border: 1px solid #6ea8fe;
+  background: rgba(110, 168, 254, 0.1);
+  color: #6ea8fe;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.media-info__copy:hover { background: #6ea8fe; color: #07101f; }
+.media-info__hint { margin: 7px 0 0; font-size: 10px; line-height: 1.7; color: var(--muted); }
+.media-info__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 @media (max-width: 720px) {
   .media-playlist__head { flex-direction: column; }
   .media-playlist__actions { width: 100%; }

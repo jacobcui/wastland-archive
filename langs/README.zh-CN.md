@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../src/assets/logo-wordmark.png" alt="废土馆藏 Logo" width="440" /></p>
 
-**版本 1.0.6** · [更新日志](../CHANGELOG.md)
+**版本 1.0.7** · [更新日志](../CHANGELOG.md)
 
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
@@ -50,10 +50,11 @@
 
 ![Media 插件介绍图 — 示例视频](../docs/sample-mp4.png)
 
-- **播放历史**：右侧列出最近播放的 8 个媒体及进度，点击即可从上次位置继续；已播完的从头开始。
+- **播放历史**：右侧列出最近播放的 8 个媒体及进度，点击即可从上次位置继续；已播完的从头开始。点击 × 只从历史移除，不删除文件。
 - **每个文件独立记忆播放位置**：切换媒体、离开插件或重启 App 后，再次打开会从上次位置继续；已经播完的文件从开头开始。
+- **文件信息**：INFO 按钮显示类型、大小和路径，并可复制；浏览器不暴露绝对路径时，可手动填写目录根路径或文件路径。
 - **不复制源文件**：媒体保留在原目录，文件夹导入只保存元数据、句柄和播放位置，不复制进 data/ 或 IndexedDB。
-- 优先使用浏览器原生解码。
+- 优先使用浏览器原生解码。大体积 H.264/AAC MP4 直接原生播放；只有浏览器不支持的格式才走本机转码。
 - 原生失败时自动由本机 ffmpeg 生成 2 秒 HLS 片段，首段生成即播放。
 - 切到别的媒体再切回来：复用 HLS 会话与已生成片段，并从上次播放位置继续。
 - 音频可视化：波形、频谱条、线状频谱、径向频谱、粒子、山峦。
@@ -63,6 +64,8 @@
 示例：[sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4)（来自 samplelib.com）。
 
 ![Media 播放历史](../docs/media-history.png)
+
+![Media 文件信息与路径](../docs/media-info.png)
 
 ### 粒子可视化
 
@@ -130,7 +133,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make bootstrap | 只检测/安装环境 |
 | make status | 查看进程 + 登录状态 |
 | make down | 停止服务 |
-| make package | 生成 Web 便携包 release/wasteland-archive-1.0.6.tar.gz |
+| make package | 生成 Web 便携包 release/wasteland-archive-1.0.7.tar.gz |
 | make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
 | make app-win | 生成 Windows x64 便携包 Wasteland-Archive-win-x64.zip |
 
@@ -143,10 +146,10 @@ make app
 输出（Apple Silicon + Intel）：
 
 ~~~text
-release/native/Wasteland-Archive-mac-arm64-1.0.6.dmg
-release/native/Wasteland-Archive-mac-arm64-1.0.6.zip
-release/native/Wasteland-Archive-mac-x64-1.0.6.dmg
-release/native/Wasteland-Archive-mac-x64-1.0.6.zip
+release/native/Wasteland-Archive-mac-arm64-1.0.7.dmg
+release/native/Wasteland-Archive-mac-arm64-1.0.7.zip
+release/native/Wasteland-Archive-mac-x64-1.0.7.dmg
+release/native/Wasteland-Archive-mac-x64-1.0.7.zip
 ~~~
 
 两个 DMG 都包含 App 和 **Applications 快捷方式**。打开 DMG，把 **废土馆藏.app** 拖到 Applications 上。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
@@ -167,7 +170,7 @@ make app-win
 输出：
 
 ~~~text
-release/native/Wasteland-Archive-win-x64-1.0.6.zip
+release/native/Wasteland-Archive-win-x64-1.0.7.zip
 ~~~
 
 在 Windows 10/11 x64 上解压，运行 **废土馆藏.exe** 即可。这是便携版，不需要安装 Node，也不需要单独启动 server；包内包含 Windows Electron、ffmpeg 和 Playwright headless Chromium。

@@ -236,7 +236,7 @@ app.post("/api/transcode/init", (req, res) => {
     startedAt: Date.now(),
     uploaded: 0,
   });
-  res.json({ ok: true, id, chunkSize: 8 * 1024 * 1024 });
+  res.json({ ok: true, id, chunkSize: 32 * 1024 * 1024 });
 });
 
 app.post("/api/transcode/:id/chunk", (req, res) => {

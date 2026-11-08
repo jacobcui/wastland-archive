@@ -2,6 +2,19 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.7] — 2026-11-08
+
+### Added
+
+- Remove button in the play history (removes only the history entry, not the file).
+- INFO button on every media row showing type, size and path, with copy; a folder root or file path can be set manually for the browser’s privacy-restricted paths.
+
+### Fixed
+
+- Large H.264/AAC MP4 files now try native playback first instead of being uploaded for transcoding. A 1.7 GB film starts immediately instead of waiting for a 1.7 GB local upload.
+- Increased local transcode upload chunks to 32 MB for unsupported formats.
+- History entries can be hidden without deleting the media item.
+
 ## [1.0.6] — 2026-11-08
 
 ### Fixed
