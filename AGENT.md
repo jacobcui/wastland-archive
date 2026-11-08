@@ -7,7 +7,7 @@ This file defines how an AI agent should handle update, fix and feature requests
 
 **Wasteland Archive / 废土馆藏** is a local-first desktop/browser archive of Chinese
 magazines, PDFs, image folders and local media. Repository:
-`jacobcui/wastland-archive`. Current version at the time of writing: **1.1.9**.
+`jacobcui/wastland-archive`. Current version at the time of writing: **1.2.0**.
 
 ### Architecture
 
@@ -104,6 +104,9 @@ stay outside it.
 - Stream copy requires a reliable keyframe map. If keyframe probing finds missing
   `N/A` PTS or an implausible GOP map, the server must disable copy and re-encode
   segments on demand; ffmpeg cannot mux copy-cut segments from those files.
+- The playlist has a persisted **目录级 / 文件级** display switch. Folder level hides
+  file rows but keeps the folder tree and counts; file level expands all folders.
+  It is a UI preference in localStorage, not part of the server media index.
 - Subtitles: same-name `.srt`/`.vtt` is read from the folder; manual SRT/VTT loading
   is supported. The overlay uses `activeSubtitleText` in the video stage.
 - Media versions/positions/history/subtitles are server-backed; do not move them back

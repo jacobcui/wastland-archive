@@ -67,7 +67,21 @@ const dragging = ref(false);
 const removeCandidate = ref(null);
 const folderRemoveCandidate = ref(null);
 const collapsed = reactive(new Set());
+const LIST_LEVEL_KEY = "wasteland.media.list-level.v1";
+let storedListLevel = "file";
+try { storedListLevel = localStorage.getItem(LIST_LEVEL_KEY) || "file"; } catch {}
+const listLevel = ref(storedListLevel === "folder" ? "folder" : "file");
 const fileInput = ref(null);
+
+function setListLevel(level) {
+  const next = level === "folder" ? "folder" : "file";
+  listLevel.value = next;
+  /* File level means "show the files": expand every folder so nothing is
+     hidden behind a collapsed branch. Folder level keeps the current tree
+     shape but omits file rows. */
+  if (next === "file") collapsed.clear();
+  try { localStorage.setItem(LIST_LEVEL_KEY, next); } catch {}
+}
 const folderInput = ref(null);
 const videoRef = ref(null);
 const audioRef = ref(null);
@@ -480,13 +494,14 @@ function treeCount(node) {
   return total;
 }
 
-function appendTreeRows(out, node, depth, keyPrefix) {
+function appendTreeRows(out, node, depth, keyPrefix, showFiles) {
   const dirs = [...node.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-CN", { numeric: true, sensitivity: "base" }));
   for (const [name, child] of dirs) {
     const key = keyPrefix + "/" + name;
     out.push({ type: "dir", key, name, depth, count: treeCount(child) });
-    if (!collapsed.has(key)) appendTreeRows(out, child, depth + 1, key);
+    if (!collapsed.has(key)) appendTreeRows(out, child, depth + 1, key, showFiles);
   }
+  if (!showFiles) return;
   const files = [...node.files].sort(sortMediaRows);
   for (const row of files) out.push({ type: "file", row, depth });
 }
@@ -499,16 +514,17 @@ const playOrder = computed(() => {
 
 const treeRows = computed(() => {
   const out = [];
+  const showFiles = listLevel.value !== "folder";
   const loose = media.value.filter((row) => !row.folderId).sort(sortMediaRows);
   if (loose.length) {
     out.push({ type: "folder", key: "loose", name: "直接导入", depth: 0, count: loose.length, folder: null });
-    if (!collapsed.has("loose")) for (const row of loose) out.push({ type: "file", row, depth: 1 });
+    if (!collapsed.has("loose") && showFiles) for (const row of loose) out.push({ type: "file", row, depth: 1 });
   }
   for (const folder of folders.value) {
     const files = folderFiles(folder.id);
     const key = "folder:" + folder.id;
     out.push({ type: "folder", key, name: folder.name, depth: 0, count: files.length, folder });
-    if (!collapsed.has(key)) appendTreeRows(out, buildPathTree(files), 1, key);
+    if (!collapsed.has(key)) appendTreeRows(out, buildPathTree(files), 1, key, showFiles);
   }
   return out;
 });
@@ -2571,6 +2587,32 @@ onBeforeUnmount(() => {
             </select>
           </div>
 
+          <div class="media-playlist__level">
+            <span class="eyebrow">显示层级</span>
+            <div class="media-level-switch" role="group" aria-label="媒体列表显示层级">
+              <button
+                type="button"
+                class="media-level-btn"
+                :class="{ 'is-active': listLevel === 'folder' }"
+                :aria-pressed="listLevel === 'folder'"
+                title="Folder level · 只显示目录层级，隐藏文件"
+                @click="setListLevel('folder')"
+              >
+                目录级
+              </button>
+              <button
+                type="button"
+                class="media-level-btn"
+                :class="{ 'is-active': listLevel === 'file' }"
+                :aria-pressed="listLevel === 'file'"
+                title="File level · 展开目录并显示文件"
+                @click="setListLevel('file')"
+              >
+                文件级
+              </button>
+            </div>
+          </div>
+
           <div v-if="history.length" class="media-history">
             <div class="media-history__head">
               <span class="eyebrow">HISTORY · 播放历史</span>
@@ -3126,6 +3168,21 @@ onBeforeUnmount(() => {
 .media-playlist__actions { display: flex; gap: 5px; flex-wrap: wrap; }
 .media-playlist__actions .mini-btn { flex: 0 0 auto; padding: 7px 8px; }
 .media-playlist__mode { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.media-playlist__level { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.media-level-switch { display: flex; border: 1px solid var(--line); background: #0b0a08; }
+.media-level-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.media-level-btn + .media-level-btn { border-left: 1px solid var(--line); }
+.media-level-btn:hover { color: var(--bone); background: rgba(255, 255, 255, 0.035); }
+.media-level-btn.is-active { color: #6ea8fe; background: rgba(110, 168, 254, 0.12); box-shadow: inset 0 -1px 0 #6ea8fe; }
 .media-mode {
   border: 1px solid var(--line);
   background: #0b0a08;

@@ -2,6 +2,12 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.2.0] — 2026-11-08
+
+### Added
+
+- Media playlist now has a **目录级 / 文件级** display switch. Folder level shows the directory hierarchy without file rows; file level expands every folder and shows all media files. The choice is remembered across reloads, and per-folder collapse/expand still works.
+
 ## [1.1.9] — 2026-11-08
 
 ### Fixed
