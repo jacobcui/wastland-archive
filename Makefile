@@ -15,7 +15,7 @@ PKG_NAME  := wasteland-archive-$(VERSION)
 export PATH := $(NODE_BIN_DIR):$(PATH)
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap install build package app app-win up down restart status logs dev clean
+.PHONY: help bootstrap install build package app app-win upload-release-assets up down restart status logs dev clean
 
 help: ## 显示可用命令
 	@echo "废土馆藏 · WASTELAND ARCHIVE"
@@ -48,6 +48,18 @@ app: bootstrap ## 构建 macOS 原生 App（arm64 + x64）+ zip/dmg
 app-win: bootstrap ## 构建 Windows x64 便携包
 	npm run desktop:zip:win
 	@echo "● Windows x64：release/native/Wasteland-Archive-win-x64.zip"
+
+upload-release-assets: ## 上传已构建资产到现有 GitHub Release（version=x.x.x）
+	@test -n "$(version)" || (echo "用法: make upload-release-assets version=x.x.x"; exit 2)
+	@V=$$(printf '%s' '$(version)' | sed 's/^v//'); \
+	FILES="release/native/Wasteland-Archive-mac-arm64-$$V.dmg release/native/Wasteland-Archive-mac-arm64-$$V.zip release/native/Wasteland-Archive-mac-x64-$$V.dmg release/native/Wasteland-Archive-mac-x64-$$V.zip release/native/Wasteland-Archive-win-x64-$$V.zip release/wasteland-archive-$$V.tar.gz"; \
+	for f in $$FILES; do \
+		[ -f "$$f" ] || { echo "✕ 缺少本地资产: $$f"; exit 1; }; \
+	done; \
+	gh release view "v$$V" --repo jacobcui/wastland-archive >/dev/null 2>&1 || { echo "✕ GitHub Release v$$V 不存在，请先创建 release（可只包含说明）"; exit 1; }; \
+	echo "→ 上传 v$$V 的本地资产…"; \
+	gh release upload "v$$V" $$FILES --repo jacobcui/wastland-archive --clobber; \
+	echo "● 已上传 v$$V 的资产"
 
 up: bootstrap ## 后台启动（自动检测环境并安装缺失依赖）
 	@mkdir -p $(RUN_DIR); \

@@ -78,10 +78,35 @@ For a user-visible update:
   - `sh scripts/build-native-win.sh` for Windows x64
   - `make package` for the web package
 - Verify release asset names contain the version.
-- Create the GitHub release with versioned assets.
+- Create the GitHub release with **title, changelog and notes only**. Do **not** attach
+  build artifacts during release creation; this keeps the release action fast.
+- Keep the built assets in `release/` for later upload.
 - Run the previous-version update check after publishing; the new release should be
   reported by `GET /api/update`.
 - Close the issue with the release URL and commit hash.
+
+### Uploading release assets later
+
+Create the release without asset paths:
+
+```bash
+gh release create v<version> --target main \
+  --title "Wasteland Archive <version> · 废土馆藏" \
+  --notes-file CHANGELOG.md --latest
+```
+
+When the assets are ready to publish:
+
+```bash
+make upload-release-assets version=<version>
+```
+
+The target checks the local versioned files, confirms that the GitHub release exists,
+and uploads with `--clobber`. It uploads:
+
+- macOS arm64 and x64 DMG/ZIP
+- Windows x64 ZIP
+- web `wasteland-archive-<version>.tar.gz`
 
 ## Exceptions
 
