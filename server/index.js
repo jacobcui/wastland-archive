@@ -246,17 +246,40 @@ function probeMediaInfo(filePath) {
   });
 }
 
-async function probeKeyframeTimes(filePath, duration) {
-  const parse = (text) => {
-    const times = [];
-    for (const line of String(text || "").split(/\r?\n/)) {
-      const match = line.match(/pts_time:(\d+(?:\.\d+)?)/) || line.match(/^(-?\d+(?:\.\d+)?)$/);
-      if (!match) continue;
-      const value = Number(match[1]);
-      if (Number.isFinite(value) && value > 0.1 && value < duration - 0.1) times.push(value);
+function parseKeyframeProbe(text, duration) {
+  const times = [];
+  let missing = 0;
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const value = line.trim();
+    if (!value) continue;
+    /* ffprobe prints a bare N/A, and showinfo uses pts/ pts_time, when a
+       keyframe has no readable timestamp. Ignore progress lines such as
+       "bitrate=N/A"; only timestamp fields matter. */
+    if (/^N\/A,?$/.test(value) || /\bpts(?:_time)?:\s*N\/A\b/.test(value)) {
+      missing += 1;
+      continue;
     }
-    return times;
-  };
+    const match = value.match(/pts_time:(-?\d+(?:\.\d+)?)/) || value.match(/^(-?\d+(?:\.\d+)?),?$/);
+    if (!match) continue;
+    const time = Number(match[1]);
+    if (Number.isFinite(time) && time > 0.1 && time < duration - 0.1) times.push(time);
+  }
+  return { times: [...new Set(times)].sort((a, b) => a - b), missing };
+}
+
+function keyframeProbeIsUsable({ times, missing }, duration) {
+  if (missing > 0 || times.length < 2) return false;
+  /* The showinfo fallback can print every frame even with -skip_frame nokey.
+     More than a handful of "keyframes" per second is not a usable GOP map. */
+  if (times.length > Math.max(8, duration * 2)) return false;
+  for (let index = 1; index < times.length; index += 1) {
+    if (times[index] - times[index - 1] > 60) return false;
+  }
+  return true;
+}
+
+async function probeKeyframeTimes(filePath, duration) {
+  let probe = { times: [], missing: 0 };
   try {
     const { stdout } = await execFileAsync("ffprobe", [
       "-v", "error",
@@ -266,24 +289,26 @@ async function probeKeyframeTimes(filePath, duration) {
       "-of", "csv=p=0",
       filePath,
     ], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-    return [...new Set(parse(stdout))].sort((a, b) => a - b);
-  } catch {}
-  try {
-    const { stderr } = await execFileAsync(FFMPEG_BIN, [
-      "-hide_banner",
-      "-loglevel", "info",
-      "-skip_frame", "nokey",
-      "-i", filePath,
-      "-map", "0:v:0",
-      "-vf", "showinfo",
-      "-an",
-      "-f", "null",
-      "-",
-    ], { timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
-    return [...new Set(parse(stderr))].sort((a, b) => a - b);
-  } catch (error) {
-    return [...new Set(parse(String(error && error.stderr ? error.stderr : "")))].sort((a, b) => a - b);
+    probe = parseKeyframeProbe(stdout, duration);
+  } catch {
+    try {
+      const { stderr } = await execFileAsync(FFMPEG_BIN, [
+        "-hide_banner",
+        "-loglevel", "info",
+        "-skip_frame", "nokey",
+        "-i", filePath,
+        "-map", "0:v:0",
+        "-vf", "showinfo",
+        "-an",
+        "-f", "null",
+        "-",
+      ], { timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
+      probe = parseKeyframeProbe(stderr, duration);
+    } catch (error) {
+      probe = parseKeyframeProbe(String(error && error.stderr ? error.stderr : ""), duration);
+    }
   }
+  return { ...probe, reliable: keyframeProbeIsUsable(probe, duration) };
 }
 
 function createHlsSession(filePath, duration, keyframes = [], { copyVideo = false, copyAudio = false } = {}) {
@@ -378,6 +403,8 @@ function generateHlsSegment(session, index) {
     "-f", "mpegts",
     "pipe:1",
   ];
+  const useCopyVideo = session.copyVideo;
+  const useCopyAudio = session.copyAudio;
   const promise = new Promise((resolve, reject) => {
     const child = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
     session.procs.add(child);
@@ -409,6 +436,16 @@ function generateHlsSegment(session, index) {
       }
       finish(null, Buffer.concat(chunks));
     });
+  }).catch((error) => {
+    /* Stream copy can still fail on files whose packet timestamps look usable
+       to the probe (notably native builds where ffprobe is unavailable) but
+       cannot be muxed. Retry this segment, and all later ones, with re-encode. */
+    if ((!useCopyVideo && !useCopyAudio) || !hlsSessions.has(session.id)) throw error;
+    session.copyVideo = false;
+    session.copyAudio = false;
+    session.segments.clear();
+    session.bytes = 0;
+    return generateHlsSegment(session, index);
   });
   session.generating.set(index, promise);
   return promise;
@@ -816,16 +853,22 @@ app.post("/api/media-library/items/:id/transcode", async (req, res) => {
     let duration = mediaInfo.duration;
     if (!(duration > 0)) duration = Number(req.body && req.body.duration) || 0;
     if (!(duration > 0)) return res.status(400).json({ ok: false, error: "无法读取视频时长" });
-    const keyframes = await probeKeyframeTimes(info.absolutePath, duration);
-    const session = createHlsSession(info.absolutePath, duration, keyframes, {
-      copyVideo: mediaInfo.videoCodec === "h264",
-      copyAudio: ["aac", "mp3"].includes(mediaInfo.audioCodec),
+    const probe = await probeKeyframeTimes(info.absolutePath, duration);
+    /* Stream copy is only safe when every source keyframe has a readable PTS.
+       Some MPEG-TS files (even with an .mp4 extension) lose keyframe
+       timestamps; ffmpeg then fails to mux a segment cut at 2s with
+       "first pts and dts value must be set". Re-encode those on demand. */
+    const copyVideo = probe.reliable && mediaInfo.videoCodec === "h264";
+    const session = createHlsSession(info.absolutePath, duration, probe.reliable ? probe.times : [], {
+      copyVideo,
+      copyAudio: copyVideo && ["aac", "mp3"].includes(mediaInfo.audioCodec),
     });
     res.json({
       ok: true,
       id: session.id,
       duration,
       mode: "memory",
+      streamCopy: copyVideo,
       playlist: "/api/media-library/hls/" + session.id + "/index.m3u8",
     });
   } catch (error) {

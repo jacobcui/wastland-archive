@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.9] — 2026-11-08
+
+### Fixed
+
+- HLS playback no longer stalls at the first segment for MPEG-TS files whose keyframes have missing/N/A timestamps (for example an `.mp4`-named TS file). The server now detects the unusable keyframe map, disables stream copy, and re-encodes each requested segment on demand.
+- Keyframe probing now parses CSV timestamps with trailing commas and rejects GOP maps that contain `N/A` or implausibly dense keyframes, so a bad probe cannot silently enable stream copy.
+
 ## [1.1.8] — 2026-11-08
 
 ### Fixed

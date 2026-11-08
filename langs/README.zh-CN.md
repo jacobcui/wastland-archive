@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../src/assets/logo-wordmark.png" alt="废土馆藏 Logo" width="440" /></p>
 
-**版本 1.1.8** · [更新日志](../CHANGELOG.md)
+**版本 1.1.9** · [更新日志](../CHANGELOG.md)
 
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
@@ -60,7 +60,7 @@
 - **服务端媒体库**：只需添加一次绝对目录路径——可以手动粘贴，也可以从系统目录选择器选择；服务端扫描后把索引、播放位置和字幕保存在 `~/.wasteland_archive`（原生 App 为 Application Support）。换浏览器后仍是同一个媒体库。
 - **不复制源文件**：媒体保留在原目录，不复制进 data/ 或 IndexedDB。
 - 优先使用浏览器原生解码。大体积 H.264/AAC MP4 直接原生播放；只有浏览器不支持的格式才走本机转码。
-- 原生失败时按需生成关键帧对齐的 HLS 片段；只有 HLS.js 请求时 ffmpeg 才运行，分片保存在内存；H.264/AAC 源直接 remux，不重新编码。
+- 原生失败时按需生成关键帧对齐的 HLS 片段；只有 HLS.js 请求时 ffmpeg 才运行，分片保存在内存；H.264/AAC 源直接 remux，不重新编码；若源关键帧时间戳损坏，则按需重新编码。
 - 暂停后停止继续加载；停止/关闭播放器删除内存会话。切回时从保存的播放位置重新创建按需会话。
 - 音频可视化：波形、频谱条、线状频谱、径向频谱、粒子、山峦。
 - 全屏音频会自动隐藏所有控制条；移动鼠标会同时淡入文件信息、进度、退出和可视化选择。
@@ -144,7 +144,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make bootstrap | 只检测/安装环境 |
 | make status | 查看进程 + 登录状态 |
 | make down | 停止服务 |
-| make package | 生成 Web 便携包 release/wasteland-archive-1.1.8.tar.gz |
+| make package | 生成 Web 便携包 release/wasteland-archive-1.1.9.tar.gz |
 | make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
 | make app-win | 生成 Windows x64 便携包 Wasteland-Archive-win-x64.zip |
 
@@ -157,10 +157,10 @@ make app
 输出（Apple Silicon + Intel）：
 
 ~~~text
-release/native/Wasteland-Archive-mac-arm64-1.1.8.dmg
-release/native/Wasteland-Archive-mac-arm64-1.1.8.zip
-release/native/Wasteland-Archive-mac-x64-1.1.8.dmg
-release/native/Wasteland-Archive-mac-x64-1.1.8.zip
+release/native/Wasteland-Archive-mac-arm64-1.1.9.dmg
+release/native/Wasteland-Archive-mac-arm64-1.1.9.zip
+release/native/Wasteland-Archive-mac-x64-1.1.9.dmg
+release/native/Wasteland-Archive-mac-x64-1.1.9.zip
 ~~~
 
 两个 DMG 都包含 App 和 **Applications 快捷方式**。打开 DMG，把 **废土馆藏.app** 拖到 Applications 上。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
@@ -181,7 +181,7 @@ make app-win
 输出：
 
 ~~~text
-release/native/Wasteland-Archive-win-x64-1.1.8.zip
+release/native/Wasteland-Archive-win-x64-1.1.9.zip
 ~~~
 
 在 Windows 10/11 x64 上解压，运行 **废土馆藏.exe** 即可。这是便携版，不需要安装 Node，也不需要单独启动 server；包内包含 Windows Electron、ffmpeg 和 Playwright headless Chromium。

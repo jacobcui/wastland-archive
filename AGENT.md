@@ -7,7 +7,7 @@ This file defines how an AI agent should handle update, fix and feature requests
 
 **Wasteland Archive / 废土馆藏** is a local-first desktop/browser archive of Chinese
 magazines, PDFs, image folders and local media. Repository:
-`jacobcui/wastland-archive`. Current version at the time of writing: **1.1.8**.
+`jacobcui/wastland-archive`. Current version at the time of writing: **1.1.9**.
 
 ### Architecture
 
@@ -101,6 +101,9 @@ stay outside it.
   HLS uses stream copy for H.264/AAC and keyframe-aligned segments. Unsupported
   codecs use on-demand libx264. Do not reintroduce full-file uploads or fixed 2s
   cuts that overlap source GOPs.
+- Stream copy requires a reliable keyframe map. If keyframe probing finds missing
+  `N/A` PTS or an implausible GOP map, the server must disable copy and re-encode
+  segments on demand; ffmpeg cannot mux copy-cut segments from those files.
 - Subtitles: same-name `.srt`/`.vtt` is read from the folder; manual SRT/VTT loading
   is supported. The overlay uses `activeSubtitleText` in the video stage.
 - Media versions/positions/history/subtitles are server-backed; do not move them back
