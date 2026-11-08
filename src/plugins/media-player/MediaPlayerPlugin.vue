@@ -67,6 +67,7 @@ const dragging = ref(false);
 const removeCandidate = ref(null);
 const folderRemoveCandidate = ref(null);
 const collapsed = reactive(new Set());
+const expandedFolders = reactive(new Set());
 const LIST_LEVEL_KEY = "wasteland.media.list-level.v1";
 let storedListLevel = "file";
 try { storedListLevel = localStorage.getItem(LIST_LEVEL_KEY) || "file"; } catch {}
@@ -76,11 +77,14 @@ const fileInput = ref(null);
 function setListLevel(level) {
   const next = level === "folder" ? "folder" : "file";
   listLevel.value = next;
-  /* File level means "show the files": expand every folder so nothing is
-     hidden behind a collapsed branch. Folder level keeps the current tree
-     shape but omits file rows. */
+  /* Folder level starts with every folder collapsed; opening a folder reveals
+     its files. File level expands the whole tree. */
   if (next === "file") collapsed.clear();
   try { localStorage.setItem(LIST_LEVEL_KEY, next); } catch {}
+}
+
+function isTreeCollapsed(key) {
+  return listLevel.value === "folder" ? !expandedFolders.has(key) : collapsed.has(key);
 }
 const folderInput = ref(null);
 const videoRef = ref(null);
@@ -494,14 +498,13 @@ function treeCount(node) {
   return total;
 }
 
-function appendTreeRows(out, node, depth, keyPrefix, showFiles) {
+function appendTreeRows(out, node, depth, keyPrefix) {
   const dirs = [...node.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-CN", { numeric: true, sensitivity: "base" }));
   for (const [name, child] of dirs) {
     const key = keyPrefix + "/" + name;
     out.push({ type: "dir", key, name, depth, count: treeCount(child) });
-    if (!collapsed.has(key)) appendTreeRows(out, child, depth + 1, key, showFiles);
+    if (!isTreeCollapsed(key)) appendTreeRows(out, child, depth + 1, key);
   }
-  if (!showFiles) return;
   const files = [...node.files].sort(sortMediaRows);
   for (const row of files) out.push({ type: "file", row, depth });
 }
@@ -514,22 +517,26 @@ const playOrder = computed(() => {
 
 const treeRows = computed(() => {
   const out = [];
-  const showFiles = listLevel.value !== "folder";
   const loose = media.value.filter((row) => !row.folderId).sort(sortMediaRows);
   if (loose.length) {
     out.push({ type: "folder", key: "loose", name: "直接导入", depth: 0, count: loose.length, folder: null });
-    if (!collapsed.has("loose") && showFiles) for (const row of loose) out.push({ type: "file", row, depth: 1 });
+    if (!isTreeCollapsed("loose")) for (const row of loose) out.push({ type: "file", row, depth: 1 });
   }
   for (const folder of folders.value) {
     const files = folderFiles(folder.id);
     const key = "folder:" + folder.id;
     out.push({ type: "folder", key, name: folder.name, depth: 0, count: files.length, folder });
-    if (!collapsed.has(key)) appendTreeRows(out, buildPathTree(files), 1, key, showFiles);
+    if (!isTreeCollapsed(key)) appendTreeRows(out, buildPathTree(files), 1, key);
   }
   return out;
 });
 
 function toggleTree(key) {
+  if (listLevel.value === "folder") {
+    if (expandedFolders.has(key)) expandedFolders.delete(key);
+    else expandedFolders.add(key);
+    return;
+  }
   if (collapsed.has(key)) collapsed.delete(key);
   else collapsed.add(key);
 }
@@ -2653,7 +2660,7 @@ onBeforeUnmount(() => {
                 :style="{ paddingLeft: (6 + node.depth * 12) + 'px' }"
                 @click="toggleTree(node.key)"
               >
-                <span class="media-tree__toggle">{{ collapsed.has(node.key) ? "▸" : "▾" }}</span>
+                <span class="media-tree__toggle">{{ isTreeCollapsed(node.key) ? "▸" : "▾" }}</span>
                 <span class="media-tree__name" :title="node.name">{{ node.name }}</span>
                 <span class="media-tree__count">{{ node.count }}</span>
                 <button

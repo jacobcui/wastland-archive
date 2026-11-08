@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="plugin-card__body">
-              <div class="plugin-card__kicker">{{ plugin.latin }} · v{{ plugin.version }}</div>
+              <div class="plugin-card__kicker">{{ plugin.latin }}</div>
               <h3 class="plugin-card__name">{{ pluginName(plugin) }}</h3>
               <p class="plugin-card__desc">{{ pluginDescription(plugin) }}</p>
               <div class="plugin-card__tags">

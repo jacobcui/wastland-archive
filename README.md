@@ -2,7 +2,7 @@
 
 <p align="center"><img src="src/assets/logo-wordmark.png" alt="Wasteland Archive logo" width="440" /></p>
 
-**Version 1.3.0** · [Changelog](CHANGELOG.md)
+**Version 1.3.1** · [Changelog](CHANGELOG.md)
 
 **Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
 
@@ -61,7 +61,7 @@ Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.co
 - **Non-destructive imports.** Source media stays in its original folder. No media copies into `data/` or IndexedDB.
 - Native playback first. Large H.264/AAC MP4 files play directly; local transcoding is only for unsupported formats.
 - On failure: local ffmpeg produces keyframe-aligned HLS segments only when HLS.js requests them; segments live in memory. H.264/AAC sources are remuxed without re-encoding, unless the source keyframes have broken timestamps; those are re-encoded on demand.
-- The playlist can switch between **Folder level** (folders only) and **File level** (all files, folders expanded); the choice is remembered.
+- The playlist can switch between **Folder level** (folders start collapsed; expand one to see its files) and **File level** (all files, folders expanded); the choice is remembered.
 - Pausing stops segment loading; stopping/closing deletes the in-memory session. Returning reuses the saved playback position and creates a new on-demand session.
 - Audio visualizers: waveform, spectrum bars, line spectrum, radial spectrum, particles and terrain.
 - Fullscreen audio mode auto-hides all bars; move the pointer to fade in file info, progress, close and selector together.
@@ -143,7 +143,7 @@ Useful commands:
 | `make bootstrap` | Environment check/install only |
 | `make status` | Process + login status |
 | `make down` | Stop the server |
-| `make package` | Portable web package → `release/wasteland-archive-1.3.0.tar.gz` |
+| `make package` | Portable web package → `release/wasteland-archive-1.3.1.tar.gz` |
 | `make app` | Native macOS apps (arm64 + Intel x64) → `.app` + zip + dmg |
 | `make app-win` | Windows x64 portable app → `Wasteland-Archive-win-x64.zip` |
 
@@ -156,10 +156,10 @@ make app
 Outputs (Apple Silicon + Intel):
 
 ```text
-release/native/Wasteland-Archive-mac-arm64-1.3.0.dmg
-release/native/Wasteland-Archive-mac-arm64-1.3.0.zip
-release/native/Wasteland-Archive-mac-x64-1.3.0.dmg
-release/native/Wasteland-Archive-mac-x64-1.3.0.zip
+release/native/Wasteland-Archive-mac-arm64-1.3.1.dmg
+release/native/Wasteland-Archive-mac-arm64-1.3.1.zip
+release/native/Wasteland-Archive-mac-x64-1.3.1.dmg
+release/native/Wasteland-Archive-mac-x64-1.3.1.zip
 ```
 
 Both DMGs contain the app plus an **Applications shortcut**. Open the DMG and drag **废土馆藏.app** onto Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
@@ -180,7 +180,7 @@ make app-win
 Output:
 
 ```text
-release/native/Wasteland-Archive-win-x64-1.3.0.zip
+release/native/Wasteland-Archive-win-x64-1.3.1.zip
 ```
 
 Unzip it on Windows 10/11 x64 and run **废土馆藏.exe**. This is a portable build — no installer, no Node installation. It bundles Windows Electron, ffmpeg and Playwright headless Chromium.

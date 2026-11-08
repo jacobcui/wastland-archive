@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.3.1] — 2026-11-08
+
+### Fixed
+
+- Media **目录级** mode now starts with folders collapsed but lets you expand any folder to see its files. Previously every file row was hidden even after expanding a folder. **文件级** still expands the whole tree.
+- Removed the stale per-plugin version labels (v0.1.0 / v0.2.0) from the plugin cards and the registry.
+
 ## [1.3.0] — 2026-11-08
 
 ### Added
