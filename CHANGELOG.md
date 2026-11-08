@@ -2,6 +2,14 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.6] — 2026-11-08
+
+### Fixed
+
+- Large videos no longer fail immediately with “检查转码缓存…” after a previous aborted stream; stale transcode state is cleared and the source is re-resolved before retrying.
+- Streaming now falls back to the saved folder/file handle if the in-memory file cache was lost.
+- Clearer errors when the source file is no longer reachable, instead of leaving the last progress message.
+
 ## [1.0.5] — 2026-11-08
 
 ### Added

@@ -1496,24 +1496,34 @@ function onMediaError(event) {
   runAutoFallback(row);
 }
 
+let fallbackRunningId = "";
+
 async function runAutoFallback(row) {
-  if (!active.value || active.value.id !== row.id) return;
-  if (row.kind === "video") {
-    const streamed = await streamAndPlay({ automatic: true });
-    if (streamed) return;
-    if (!active.value || active.value.id !== row.id) return;
-    if ((row.size || 0) > 150 * 1024 * 1024) {
-      player.loading = false;
-      player.error = "无法播放该媒体。本机流式转码失败: " + (streamStatus.value || "未知错误");
+  if (!active.value || active.value.id !== row.id || fallbackRunningId === row.id) return;
+  fallbackRunningId = row.id;
+  try {
+    if (row.kind === "video") {
+      // A previous aborted stream can leave the UI in a busy state. Clear it
+      // before starting a new session so the retry does not fail immediately.
+      if (streamBusy.value) dropStreaming();
+      const streamed = await streamAndPlay({ automatic: true });
+      if (streamed) return;
+      if (!active.value || active.value.id !== row.id) return;
+      if ((row.size || 0) > 150 * 1024 * 1024) {
+        player.loading = false;
+        player.error = "无法播放该媒体。本机流式转码失败: " + (streamStatus.value || "未知错误");
+        return;
+      }
+      decodeStatus.value = "流式播放不可用，改用内置解码器…";
+      player.loading = true;
+      await decodeAndPlay({ automatic: true });
       return;
     }
-    decodeStatus.value = "流式播放不可用，改用内置解码器…";
-    player.loading = true;
+    decodeStatus.value = "使用内置解码器…";
     await decodeAndPlay({ automatic: true });
-    return;
+  } finally {
+    fallbackRunningId = "";
   }
-  decodeStatus.value = "使用内置解码器…";
-  await decodeAndPlay({ automatic: true });
 }
 
 
@@ -1644,7 +1654,10 @@ async function attachStream(playlist) {
 }
 
 async function streamAndPlay({ automatic = false } = {}) {
-  if (streamBusy.value || decoding.value || !active.value) return false;
+  if (streamBusy.value || !active.value) {
+    if (streamBusy.value) streamStatus.value = "上一段转码尚未结束，请重试";
+    return false;
+  }
   if (active.value.kind !== "video") return false;
   const row = active.value;
   detachStreaming({ keepSession: true });
@@ -1674,10 +1687,16 @@ async function streamAndPlay({ automatic = false } = {}) {
       }
       await dropMediaTranscode(row.id);
     }
-    const source = fileCache.get(row.id) || row.data || row.blob || null;
+    let source = fileCache.get(row.id) || row.data || row.blob || null;
     if (!source) {
+      source = await resolveStoredSource(row);
+      if (source) fileCache.set(row.id, source);
+    }
+    if (!source) {
+      streamStatus.value = row.folderId
+        ? "无法读取原文件夹，请重新选择该文件夹"
+        : "找不到源文件，请重新导入该媒体";
       player.loading = false;
-      player.error = "媒体数据缺失，请重新导入。";
       return false;
     }
     streamState.value = "uploading";
@@ -1688,6 +1707,7 @@ async function streamAndPlay({ automatic = false } = {}) {
     streamSessionId = result.id;
     streamStarted = true;
     await writeTranscodeRecord(row.id, result.id);
+    if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
     streamState.value = "transcoding";
     streamProgress.value = 0;
     streamStatus.value = "转码中，等待首段…";
