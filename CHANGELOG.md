@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.3] — 2026-11-08
+
+### Fixed
+
+- Windows “在资源管理器中打开浏览目录” now uses Electron’s `shell.openPath` through a preload/IPC bridge; the server-side explorer call remains as a dev-browser fallback.
+- MKX operator notes and the archive footer now show the real absolute `data/issues` path instead of `./data/issues`.
+
 ## [1.1.2] — 2026-11-08
 
 ### Changed

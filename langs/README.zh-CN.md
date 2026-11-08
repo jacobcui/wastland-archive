@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../src/assets/logo-wordmark.png" alt="废土馆藏 Logo" width="440" /></p>
 
-**版本 1.1.2** · [更新日志](../CHANGELOG.md)
+**版本 1.1.3** · [更新日志](../CHANGELOG.md)
 
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
@@ -65,7 +65,7 @@
 
 示例：[sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4)（来自 samplelib.com）。
 
-> **1.1.2 升级说明。** 媒体库索引已从浏览器 IndexedDB 移到服务端。旧浏览器条目无法自动迁移，因为浏览器不会暴露绝对路径。请点击一次 **添加目录路径**，粘贴媒体根目录（例如 `/Volumes/MYBAK2/Movies`）；服务端扫描后，所有浏览器共用同一份媒体库。
+> **1.1.3 升级说明。** 媒体库索引已从浏览器 IndexedDB 移到服务端。旧浏览器条目无法自动迁移，因为浏览器不会暴露绝对路径。请点击一次 **添加目录路径**，粘贴媒体根目录（例如 `/Volumes/MYBAK2/Movies`）；服务端扫描后，所有浏览器共用同一份媒体库。
 
 ![Media 播放历史](../docs/media-history.png)
 
@@ -139,7 +139,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make bootstrap | 只检测/安装环境 |
 | make status | 查看进程 + 登录状态 |
 | make down | 停止服务 |
-| make package | 生成 Web 便携包 release/wasteland-archive-1.1.2.tar.gz |
+| make package | 生成 Web 便携包 release/wasteland-archive-1.1.3.tar.gz |
 | make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
 | make app-win | 生成 Windows x64 便携包 Wasteland-Archive-win-x64.zip |
 
@@ -152,10 +152,10 @@ make app
 输出（Apple Silicon + Intel）：
 
 ~~~text
-release/native/Wasteland-Archive-mac-arm64-1.1.2.dmg
-release/native/Wasteland-Archive-mac-arm64-1.1.2.zip
-release/native/Wasteland-Archive-mac-x64-1.1.2.dmg
-release/native/Wasteland-Archive-mac-x64-1.1.2.zip
+release/native/Wasteland-Archive-mac-arm64-1.1.3.dmg
+release/native/Wasteland-Archive-mac-arm64-1.1.3.zip
+release/native/Wasteland-Archive-mac-x64-1.1.3.dmg
+release/native/Wasteland-Archive-mac-x64-1.1.3.zip
 ~~~
 
 两个 DMG 都包含 App 和 **Applications 快捷方式**。打开 DMG，把 **废土馆藏.app** 拖到 Applications 上。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
@@ -176,7 +176,7 @@ make app-win
 输出：
 
 ~~~text
-release/native/Wasteland-Archive-win-x64-1.1.2.zip
+release/native/Wasteland-Archive-win-x64-1.1.3.zip
 ~~~
 
 在 Windows 10/11 x64 上解压，运行 **废土馆藏.exe** 即可。这是便携版，不需要安装 Node，也不需要单独启动 server；包内包含 Windows Electron、ffmpeg 和 Playwright headless Chromium。
@@ -208,7 +208,15 @@ src/i18n/locales/zh.js
 | 自定义背景 | ~/.wasteland_browser/bg_screens | 同一路径，互通 |
 | HLS 临时文件 | `~/.wasteland_archive/transcodes`（1 小时 TTL） | Application Support `transcodes` |
 
-**从 1.0.x 升级：**旧版本把每个导入的媒体文件作为 Blob 复制进 IndexedDB，所以 App profile 可能膨胀到数百 GB。1.1.2 启动时会清除一次旧的 `media`、`mediaFolders`、`mediaTranscodes` 存储；PDF / 图片库不受影响。新的服务端媒体索引只保存路径。
+**从 1.0.x 升级：**旧版本把每个导入的媒体文件作为 Blob 复制进 IndexedDB，所以 App profile 可能膨胀到数百 GB。1.1.3 启动时会清除一次旧的 `media`、`mediaFolders`、`mediaTranscodes` 存储；PDF / 图片库不受影响。新的服务端媒体索引只保存路径。
+
+Windows 原生版的归档目录：
+
+```text
+%APPDATA%\wasteland-archive\data\issues
+```
+
+MKX 的 **OPERATOR NOTES** 会显示当前机器的完整绝对路径，旁边的按钮会在资源管理器中打开该目录；**复制数据目录** 可复制完整路径。
 
 把 Web 的杂志搬到原生 App：退出 App，把 Web data/issues 的内容复制到原生 .../data/issues，再重新打开。
 

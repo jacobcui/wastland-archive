@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
@@ -48,6 +48,21 @@ const dataDir = path.join(userData, "data");
 const logFile = path.join(userData, "app.log");
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(userData, { recursive: true });
+
+ipcMain.handle("wasteland:reveal-path", async (_event, target) => {
+  try {
+    const resolved = path.resolve(String(target || ""));
+    const allowedRoot = path.resolve(dataDir);
+    if (resolved !== allowedRoot && !resolved.startsWith(allowedRoot + path.sep)) {
+      return { ok: false, error: "路径不在应用数据目录内" };
+    }
+    if (!fs.existsSync(resolved)) return { ok: false, error: "目录不存在" };
+    const error = await shell.openPath(resolved);
+    return error ? { ok: false, error } : { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
 
 let server = null;
 let win = null;
@@ -124,6 +139,7 @@ function createWindow() {
     backgroundColor: "#080706",
     title: "废土馆藏",
     webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

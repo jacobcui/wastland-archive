@@ -29,6 +29,7 @@ const refreshing = ref(false);
 let poll = null;
 
 const library = computed(() => state.library);
+const issuesDir = computed(() => (library.value && library.value.paths && library.value.paths.issuesDir) || "./data/issues");
 const issues = computed(() => (library.value ? library.value.issues : []));
 const years = computed(() => (library.value ? library.value.years : []));
 const magazine = computed(() => (library.value && library.value.magazines[0]) || null);
@@ -223,7 +224,7 @@ onBeforeUnmount(() => {
 
         <footer class="footer-note">
           <span>MKX-ARCHIVE 插件 · 废土馆藏 · 仅限订阅者本人本机阅读</span>
-          <span>数据源 mkexue.com · 归档目录 ./data/issues</span>
+          <span>数据源 mkexue.com · 归档目录 {{ issuesDir }}</span>
         </footer>
       </section>
     </main>

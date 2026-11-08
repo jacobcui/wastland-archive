@@ -281,8 +281,26 @@ export function disconnectEvents() {
 }
 
 export async function revealArchive(nodeId = null) {
+  const issuesDir = state.library && state.library.paths && state.library.paths.issuesDir;
+  const sep = issuesDir && issuesDir.includes("\\") ? "\\" : "/";
+  const target = issuesDir ? (nodeId ? issuesDir + sep + nodeId : issuesDir) : null;
+  if (target && window.wastelandDesktop && typeof window.wastelandDesktop.revealPath === "function") {
+    try {
+      const result = await window.wastelandDesktop.revealPath(target);
+      if (result && result.ok) {
+        notify("已打开: " + target, "info");
+      } else {
+        notify("无法打开目录: " + ((result && result.error) || "未知错误"), "error");
+      }
+      return;
+    } catch (error) {
+      notify("无法打开目录: " + error.message, "error");
+      return;
+    }
+  }
   try {
-    await request("/api/reveal", { method: "POST", body: JSON.stringify({ nodeId }) });
+    const data = await request("/api/reveal", { method: "POST", body: JSON.stringify({ nodeId }) });
+    notify("已打开: " + data.path, "info");
   } catch (error) {
     notify("无法打开目录: " + error.message, "error");
   }

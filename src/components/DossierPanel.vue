@@ -4,6 +4,7 @@ import { state, revealArchive } from "@/stores/archive";
 import { sessionState, maskPhone } from "@/stores/session";
 import { formatBytes, formatDate } from "@/lib/format";
 import { openArchiveLabel } from "@/lib/platform";
+import { notify } from "@/stores/ui";
 
 const props = defineProps({ library: { type: Object, default: null } });
 const emit = defineEmits(["sync", "relogin"]);
@@ -35,6 +36,16 @@ const lastSync = computed(() => {
   return formatDate(props.library.fetchedAt, { withTime: true });
 });
 const cover = computed(() => (magazine.value ? magazine.value.coverUrl : ""));
+const archivePath = computed(() => (props.library && props.library.paths && props.library.paths.issuesDir) || "./data/issues");
+
+async function copyArchivePath() {
+  try {
+    await navigator.clipboard.writeText(archivePath.value);
+    notify("数据目录已复制", "success");
+  } catch {
+    notify("复制失败，请手动选择路径", "error");
+  }
+}
 </script>
 
 <template>
@@ -87,16 +98,18 @@ const cover = computed(() => (magazine.value ? magazine.value.coverUrl : ""));
           {{ sessionState.session.authenticated ? "重新登录" : "登录账号" }}
         </button>
       </div>
-      <button class="btn-ghost file-manager-btn" style="width: 100%; margin-top: 8px" @click="revealArchive()">{{ openArchiveLabel }}</button>
+      <button class="btn-ghost file-manager-btn" style="width: 100%; margin-top: 8px" :title="'打开 ' + archivePath" @click="revealArchive()">{{ openArchiveLabel }}</button>
     </div>
 
     <div class="panel" style="padding: 12px 14px">
       <div class="eyebrow" style="margin-bottom: 8px">OPERATOR NOTES</div>
       <p style="font-size: 12px; line-height: 1.9; color: var(--muted); margin: 0">
-        所有期刊仅归档至本机 <span class="mono" style="color: var(--amber)">./data/issues</span>，凭个人订阅凭证读取。<br />
-        手机号与密码只保存在本浏览器 localStorage，不写入服务端。<br />
+        所有期刊仅归档至本机：<br />
+        <span class="mono" style="display: block; color: var(--amber); font-size: 10px; line-height: 1.5; word-break: break-all; margin: 4px 0 6px">{{ archivePath }}</span>
+        凭个人订阅凭证读取。手机号与密码只保存在本浏览器 localStorage，不写入服务端。<br />
         不提供分享、发布或再分发能力。
       </p>
+      <button class="mini-btn" style="margin-top: 8px" @click="copyArchivePath">复制数据目录</button>
     </div>
   </aside>
 </template>

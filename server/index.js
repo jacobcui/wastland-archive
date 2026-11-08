@@ -894,6 +894,7 @@ async function buildLibrary(yearParam) {
     issues,
     localCount: archived.length,
     storageBytes: archived.reduce((sum, i) => sum + (i.bytes || 0), 0),
+    paths: { dataDir: DATA_DIR, issuesDir: ISSUES_DIR },
   };
 }
 
@@ -1034,9 +1035,13 @@ app.post("/api/reveal", (req, res) => {
   if (nodeId && !/^[\w-]+$/.test(nodeId)) return res.status(400).json({ ok: false, error: "目录名无效" });
   const target = nodeId ? path.join(ISSUES_DIR, nodeId) : ISSUES_DIR;
   if (!fs.existsSync(target)) return res.status(404).json({ ok: false, error: "目录不存在" });
-  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer.exe" : "xdg-open";
   try {
-    const child = spawn(command, [target], { detached: true, stdio: "ignore", windowsHide: true });
+    const child = spawn(command, [target], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+    });
     child.on("error", (error) => console.error("[reveal]", error.message));
     child.unref();
     res.json({ ok: true, path: target, command });
