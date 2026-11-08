@@ -7,7 +7,7 @@ This file defines how an AI agent should handle update, fix and feature requests
 
 **Wasteland Archive / 废土馆藏** is a local-first desktop/browser archive of Chinese
 magazines, PDFs, image folders and local media. Repository:
-`jacobcui/wastland-archive`. Current version at the time of writing: **1.3.1**.
+`jacobcui/wastland-archive`. Current version at the time of writing: **1.3.2**.
 
 ### Architecture
 
@@ -79,9 +79,11 @@ stay outside it.
     Segments live in an in-memory Map (128 MB cap), pause stops loading, and
     close/switch deletes the session. Do not reintroduce a continuous ffmpeg process
     or a growing segment directory for normal playback.
-  - The legacy upload transcode route still uses
-    `~/.wasteland_archive/transcodes` / Application Support `transcodes`; orphaned
-    dirs are cleared on server startup and have a short TTL.
+  - The legacy browser-upload transcode route uses a per-media-home/port OS temp
+    directory (`os.tmpdir()/wasteland-archive-transcodes-<key>`) and deletes the
+    root when empty.
+    On every server start, remove the old `MEDIA_HOME/transcodes` and
+    `DATA_DIR/transcodes` directories themselves; do not create them at boot.
   - Legacy 1.0.x media Blob stores (`media`, `mediaFolders`, `mediaTranscodes`) are
     purged once at startup. PDF/image IndexedDB stores are preserved.
 - **PDF / Image:** still use IndexedDB `wasteland-browser`; do not remove those stores

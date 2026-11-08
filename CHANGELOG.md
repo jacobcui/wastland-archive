@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.3.2] — 2026-11-08
+
+### Fixed
+
+- The legacy `transcodes` cache directories under the media home / Application Support and `data/` are now deleted on every server start instead of leaving empty folders behind.
+- The server no longer creates `MEDIA_HOME/transcodes` at boot. Legacy browser-upload transcodes now use a per-media-home/port OS temp directory (`wasteland-archive-transcodes-*`), and that temp root is removed as soon as no sessions remain.
+
 ## [1.3.1] — 2026-11-08
 
 ### Fixed

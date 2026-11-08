@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { PORT, ROOT, ISSUES_DIR, DATA_DIR, MEDIA_CACHE_DIR, MEDIA_HOME, UPSTREAM } from "./lib/config.js";
+import { PORT, ROOT, ISSUES_DIR, DATA_DIR, TRANSCODE_TEMP_DIR, LEGACY_TRANSCODE_DIR, MEDIA_HOME, UPSTREAM } from "./lib/config.js";
 import { readAuthRecord, session, normalizeCredentials } from "./lib/auth.js";
 import { getMagazines, normalizeIssue } from "./lib/api.js";
 import { ensureDirs, isComplete, listLocalIssues, localIssue, readProgress, writeProgress } from "./lib/store.js";
@@ -180,23 +180,29 @@ app.delete("/api/backgrounds/:file", (req, res) => {
 /* ------------------------------------------------------------------ */
 /* local ffmpeg -> HLS streaming for media that browsers cannot decode */
 /* ------------------------------------------------------------------ */
-const TRANSCODE_ROOT = MEDIA_CACHE_DIR;
-fs.mkdirSync(TRANSCODE_ROOT, { recursive: true });
-/* HLS segments are disposable. A previous server process cannot still be
-   using them after a restart, so clear orphaned sessions on boot. */
+const TRANSCODE_ROOT = TRANSCODE_TEMP_DIR;
+/* HLS sessions are disposable. Delete the legacy media-home / data folders
+   themselves (not just their contents) on every boot so users never have to
+   clean up a `transcodes` directory. This also covers the native app's
+   Application Support location because MEDIA_HOME is set there. */
+for (const legacyDir of [LEGACY_TRANSCODE_DIR, path.join(DATA_DIR, "transcodes")]) {
+  try {
+    fs.rmSync(legacyDir, { recursive: true, force: true });
+  } catch {}
+}
+/* The browser-upload fallback now uses the OS temp directory. Start each
+   launch with a clean temp root and create it lazily only when a session
+   actually starts. */
 try {
-  for (const name of fs.readdirSync(TRANSCODE_ROOT)) {
-    fs.rmSync(path.join(TRANSCODE_ROOT, name), { recursive: true, force: true });
-  }
+  fs.rmSync(TRANSCODE_ROOT, { recursive: true, force: true });
 } catch {}
-/* 1.0.x kept HLS segments inside the portable archive folder. They are pure
-   cache; remove the old directory so data/ stays small and transferable. */
-try {
-  const legacyTranscodes = path.join(DATA_DIR, "transcodes");
-  if (legacyTranscodes !== TRANSCODE_ROOT && fs.existsSync(legacyTranscodes)) {
-    fs.rmSync(legacyTranscodes, { recursive: true, force: true });
-  }
-} catch {}
+
+function removeTranscodeRootIfEmpty() {
+  try {
+    if (!fs.existsSync(TRANSCODE_ROOT)) return;
+    if (fs.readdirSync(TRANSCODE_ROOT).length === 0) fs.rmdirSync(TRANSCODE_ROOT);
+  } catch {}
+}
 const TRANSCODE_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const require = createRequire(import.meta.url);
 let bundledFfmpeg = null;
@@ -484,7 +490,10 @@ function transcodeSnapshot(id) {
 function stopTranscode(id) {
   stopHlsSession(id);
   const session = transcodeSessions.get(id);
-  if (!session) return;
+  if (!session) {
+    removeTranscodeRootIfEmpty();
+    return;
+  }
   transcodeSessions.delete(id);
   try {
     if (session.proc && !session.proc.killed) session.proc.kill("SIGKILL");
@@ -492,6 +501,7 @@ function stopTranscode(id) {
   try {
     fs.rmSync(session.dir, { recursive: true, force: true });
   } catch {}
+  removeTranscodeRootIfEmpty();
 }
 
 
@@ -617,6 +627,7 @@ app.post("/api/transcode", (req, res) => {
     aborted = true;
     output.destroy();
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+    removeTranscodeRootIfEmpty();
   });
   output.on("error", (error) => {
     if (!res.headersSent) res.status(500).json({ ok: false, error: error.message });
@@ -918,6 +929,7 @@ const transcodeCleanup = setInterval(() => {
       if (stat.isDirectory() && stat.mtimeMs < cutoff) fs.rmSync(dir, { recursive: true, force: true });
     }
   } catch {}
+  removeTranscodeRootIfEmpty();
 }, 10 * 60 * 1000);
 if (transcodeCleanup.unref) transcodeCleanup.unref();
 
