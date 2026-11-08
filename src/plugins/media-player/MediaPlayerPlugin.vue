@@ -374,6 +374,7 @@ const folderPathModal = ref(false);
 const folderPathInput = ref("");
 const folderPathError = ref("");
 const folderPathBusy = ref(false);
+const folderPickerBusy = ref(false);
 const infoFolder = computed(() => {
   if (!infoRow.value || !infoRow.value.folderId) return null;
   return folders.value.find((folder) => folder.id === infoRow.value.folderId) || null;
@@ -1419,6 +1420,33 @@ function addFolder() {
 function closeFolderPath() {
   folderPathModal.value = false;
   folderPathError.value = "";
+}
+
+async function chooseFolder() {
+  if (folderPickerBusy.value) return;
+  folderPathError.value = "";
+  folderPickerBusy.value = true;
+  try {
+    let selected = "";
+    if (window.wastelandDesktop && typeof window.wastelandDesktop.pickDirectory === "function") {
+      const result = await window.wastelandDesktop.pickDirectory();
+      if (!result || result.cancelled) return;
+      if (!result.ok) throw new Error(result.error || "无法打开目录选择器");
+      selected = result.path;
+    } else {
+      const response = await fetch("/api/media-library/pick-folder", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (data.cancelled) return;
+      if (!response.ok || !data.ok) throw new Error(data.error || "无法打开目录选择器");
+      selected = data.path;
+    }
+    folderPathInput.value = selected;
+    await nextTick();
+  } catch (error) {
+    folderPathError.value = error.message;
+  } finally {
+    folderPickerBusy.value = false;
+  }
 }
 
 async function submitFolderPath() {
@@ -2722,13 +2750,18 @@ onBeforeUnmount(() => {
           <button class="media-info__close" title="关闭" @click="closeFolderPath">×</button>
         </div>
         <label class="media-info__label">本机目录绝对路径</label>
-        <input
-          v-model="folderPathInput"
-          class="media-info__input"
-          placeholder="/Volumes/MYBAK2/Movies"
-          @keydown.enter="submitFolderPath"
-        />
-        <p class="media-info__hint">浏览器不会暴露文件夹的真实路径，请直接粘贴。服务端会递归扫描媒体文件；之后换浏览器也会看到同一个媒体库。</p>
+        <div class="media-info__picker">
+          <input
+            v-model="folderPathInput"
+            class="media-info__input"
+            placeholder="/Volumes/MYBAK2/Movies"
+            @keydown.enter="submitFolderPath"
+          />
+          <button class="btn-ghost" :disabled="folderPickerBusy" @click="chooseFolder">
+            {{ folderPickerBusy ? "选择中…" : "选择目录…" }}
+          </button>
+        </div>
+        <p class="media-info__hint">可以手动输入/粘贴路径，也可以点击“选择目录…”从系统对话框选择。服务端会递归扫描媒体文件；之后换浏览器也会看到同一个媒体库。</p>
         <p v-if="folderPathError" class="media-info__error">{{ folderPathError }}</p>
         <div class="media-info__actions">
           <button class="btn-hazard" :disabled="folderPathBusy" @click="submitFolderPath">{{ folderPathBusy ? "扫描中…" : "添加并扫描" }}</button>
@@ -3291,6 +3324,9 @@ onBeforeUnmount(() => {
 .media-info__close:hover { border-color: #6ea8fe; color: #6ea8fe; }
 .media-info__label { display: block; margin-top: 18px; margin-bottom: 6px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .media-info__path { display: flex; gap: 6px; }
+.media-info__picker { display: flex; align-items: stretch; gap: 6px; }
+.media-info__picker .media-info__input { flex: 1; min-width: 0; }
+.media-info__picker .btn-ghost { flex: 0 0 auto; white-space: nowrap; }
 .media-info__path input,
 .media-info__input {
   width: 100%;

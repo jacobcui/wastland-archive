@@ -4,7 +4,8 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { PORT, ROOT, ISSUES_DIR, DATA_DIR, MEDIA_CACHE_DIR, MEDIA_HOME, UPSTREAM } from "./lib/config.js";
 import { readAuthRecord, session, normalizeCredentials } from "./lib/auth.js";
 import { getMagazines, normalizeIssue } from "./lib/api.js";
@@ -458,6 +459,63 @@ app.use(
 /* server-backed media library: paths + playback state live outside    */
 /* DATA_DIR, so changing browsers does not lose the library.          */
 /* ------------------------------------------------------------------ */
+const execFileAsync = promisify(execFile);
+
+async function pickNativeFolder() {
+  if (process.platform === "darwin") {
+    const { stdout } = await execFileAsync("osascript", [
+      "-e",
+      'POSIX path of (choose folder with prompt "选择媒体目录")',
+    ], { timeout: 300000, maxBuffer: 1024 * 1024 });
+    return String(stdout || "").trim();
+  }
+  if (process.platform === "win32") {
+    const script = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+      "$dialog.Description = '选择媒体目录'",
+      "$dialog.ShowNewFolderButton = $true",
+      "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.WriteLine($dialog.SelectedPath) }",
+    ].join("; ");
+    const { stdout } = await execFileAsync("powershell.exe", [
+      "-NoProfile",
+      "-STA",
+      "-Command",
+      script,
+    ], { timeout: 300000, maxBuffer: 1024 * 1024, windowsHide: true });
+    return String(stdout || "").trim();
+  }
+  const attempts = [
+    ["zenity", ["--file-selection", "--directory", "--title=选择媒体目录"]],
+    ["kdialog", ["--getexistingdirectory", ".", "--title", "选择媒体目录"]],
+  ];
+  for (const [command, args] of attempts) {
+    try {
+      const { stdout } = await execFileAsync(command, args, { timeout: 300000, maxBuffer: 1024 * 1024 });
+      return String(stdout || "").trim();
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+  }
+  throw new Error("当前系统没有可用的目录选择器");
+}
+
+function isFolderPickerCancel(error) {
+  return Boolean(error && (error.code === 1 || /cancel|取消|User canceled/i.test(String(error.stderr || error.message || ""))));
+}
+
+app.post("/api/media-library/pick-folder", async (_req, res) => {
+  try {
+    const folder = await pickNativeFolder();
+    if (!folder) return res.json({ ok: false, cancelled: true });
+    res.json({ ok: true, path: folder });
+  } catch (error) {
+    if (isFolderPickerCancel(error)) return res.json({ ok: false, cancelled: true });
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/media-library", (_req, res) => {
   res.json({
     ok: true,

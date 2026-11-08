@@ -49,6 +49,17 @@ const logFile = path.join(userData, "app.log");
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(userData, { recursive: true });
 
+ipcMain.handle("wasteland:pick-directory", async () => {
+  try {
+    const options = { title: "选择媒体目录", properties: ["openDirectory", "createDirectory"] };
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    if (result.canceled || !result.filePaths || !result.filePaths[0]) return { ok: false, cancelled: true };
+    return { ok: true, path: result.filePaths[0] };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
 ipcMain.handle("wasteland:reveal-path", async (_event, target) => {
   try {
     const resolved = path.resolve(String(target || ""));

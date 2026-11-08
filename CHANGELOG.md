@@ -2,6 +2,12 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.6] — 2026-11-08
+
+### Added
+
+- The Media “add folder” dialog now supports both pasting an absolute path and choosing a folder from the native system dialog. The native app uses Electron’s directory picker; dev-server/browser mode uses a server-side macOS/Windows/Linux folder chooser.
+
 ## [1.1.5] — 2026-11-08
 
 ### Fixed
