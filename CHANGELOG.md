@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.1] — 2026-11-08
+
+### Fixed
+
+- Automatically purge the legacy media Blob stores (`media`, `mediaFolders`, `mediaTranscodes`) from IndexedDB once at startup. 1.0.x copied every imported media file into these stores, which could consume hundreds of GB in the app profile. PDF and image-folder stores are preserved.
+- Remove the old `data/transcodes` HLS cache directory on startup; new transcodes live under the media home directory.
+
 ## [1.1.0] — 2026-11-08
 
 ### Added

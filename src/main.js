@@ -5,6 +5,7 @@ import * as directives from "vuetify/directives";
 import "vuetify/styles";
 import "@mdi/font/css/materialdesignicons.css";
 import App from "./App.vue";
+import { purgeLegacyMediaCache } from "./lib/idb";
 import "./lib/platform";
 import "./styles/wasteland.css";
 
@@ -48,3 +49,4 @@ const vuetify = createVuetify({
 });
 
 createApp(App).use(vuetify).mount("#app");
+purgeLegacyMediaCache();

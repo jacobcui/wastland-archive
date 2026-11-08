@@ -181,6 +181,14 @@ app.delete("/api/backgrounds/:file", (req, res) => {
 /* ------------------------------------------------------------------ */
 const TRANSCODE_ROOT = MEDIA_CACHE_DIR;
 fs.mkdirSync(TRANSCODE_ROOT, { recursive: true });
+/* 1.0.x kept HLS segments inside the portable archive folder. They are pure
+   cache; remove the old directory so data/ stays small and transferable. */
+try {
+  const legacyTranscodes = path.join(DATA_DIR, "transcodes");
+  if (legacyTranscodes !== TRANSCODE_ROOT && fs.existsSync(legacyTranscodes)) {
+    fs.rmSync(legacyTranscodes, { recursive: true, force: true });
+  }
+} catch {}
 const TRANSCODE_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const require = createRequire(import.meta.url);
 let bundledFfmpeg = null;
