@@ -2636,7 +2636,7 @@ onBeforeUnmount(() => {
             </p>
           </details>
 
-          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在服务端媒体库（开发模式 ~/.wasteland_archive；原生 App 为 Application Support），换浏览器后仍可见；只有本机转码的临时分片会发给 127.0.0.1，不上传外网。</p>
+          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在服务端媒体库（开发模式 ~/.wasteland_archive；原生 App 为 Application Support），换浏览器后仍可见。HLS 临时分片在停止播放或重启服务后删除，可随时清空；不上传外网。</p>
         </aside>
       </div>
 

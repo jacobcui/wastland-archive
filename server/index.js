@@ -181,6 +181,13 @@ app.delete("/api/backgrounds/:file", (req, res) => {
 /* ------------------------------------------------------------------ */
 const TRANSCODE_ROOT = MEDIA_CACHE_DIR;
 fs.mkdirSync(TRANSCODE_ROOT, { recursive: true });
+/* HLS segments are disposable. A previous server process cannot still be
+   using them after a restart, so clear orphaned sessions on boot. */
+try {
+  for (const name of fs.readdirSync(TRANSCODE_ROOT)) {
+    fs.rmSync(path.join(TRANSCODE_ROOT, name), { recursive: true, force: true });
+  }
+} catch {}
 /* 1.0.x kept HLS segments inside the portable archive folder. They are pure
    cache; remove the old directory so data/ stays small and transferable. */
 try {

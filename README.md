@@ -2,7 +2,7 @@
 
 <p align="center"><img src="src/assets/logo-wordmark.png" alt="Wasteland Archive logo" width="440" /></p>
 
-**Version 1.1.1** · [Changelog](CHANGELOG.md)
+**Version 1.1.2** · [Changelog](CHANGELOG.md)
 
 **Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
 
@@ -65,7 +65,7 @@ Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.co
 
 Sample: [sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4) from samplelib.com.
 
-> **Upgrade note for 1.1.1.** The media library index moved from browser IndexedDB to the server. Old browser entries cannot be migrated automatically because browsers hide absolute paths. Click **添加目录路径** once and paste your media root (for example `/Volumes/MYBAK2/Movies`); the server scans it and the library is then shared by every browser.
+> **Upgrade note for 1.1.2.** The media library index moved from browser IndexedDB to the server. Old browser entries cannot be migrated automatically because browsers hide absolute paths. Click **添加目录路径** once and paste your media root (for example `/Volumes/MYBAK2/Movies`); the server scans it and the library is then shared by every browser.
 
 ![Media play history](docs/media-history.png)
 
@@ -137,7 +137,7 @@ Useful commands:
 | `make bootstrap` | Environment check/install only |
 | `make status` | Process + login status |
 | `make down` | Stop the server |
-| `make package` | Portable web package → `release/wasteland-archive-1.1.1.tar.gz` |
+| `make package` | Portable web package → `release/wasteland-archive-1.1.2.tar.gz` |
 | `make app` | Native macOS apps (arm64 + Intel x64) → `.app` + zip + dmg |
 | `make app-win` | Windows x64 portable app → `Wasteland-Archive-win-x64.zip` |
 
@@ -150,10 +150,10 @@ make app
 Outputs (Apple Silicon + Intel):
 
 ```text
-release/native/Wasteland-Archive-mac-arm64-1.1.1.dmg
-release/native/Wasteland-Archive-mac-arm64-1.1.1.zip
-release/native/Wasteland-Archive-mac-x64-1.1.1.dmg
-release/native/Wasteland-Archive-mac-x64-1.1.1.zip
+release/native/Wasteland-Archive-mac-arm64-1.1.2.dmg
+release/native/Wasteland-Archive-mac-arm64-1.1.2.zip
+release/native/Wasteland-Archive-mac-x64-1.1.2.dmg
+release/native/Wasteland-Archive-mac-x64-1.1.2.zip
 ```
 
 Both DMGs contain the app plus an **Applications shortcut**. Open the DMG and drag **废土馆藏.app** onto Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
@@ -174,7 +174,7 @@ make app-win
 Output:
 
 ```text
-release/native/Wasteland-Archive-win-x64-1.1.1.zip
+release/native/Wasteland-Archive-win-x64-1.1.2.zip
 ```
 
 Unzip it on Windows 10/11 x64 and run **废土馆藏.exe**. This is a portable build — no installer, no Node installation. It bundles Windows Electron, ffmpeg and Playwright headless Chromium.
@@ -201,7 +201,7 @@ The top bar language switch persists the choice in localStorage. A reload is opt
 | Custom backgrounds | `~/.wasteland_browser/bg_screens` | shared with the same path |
 | HLS temp files | `~/.wasteland_archive/transcodes` (1h TTL) | Application Support `transcodes` |
 
-**Upgrading from 1.0.x:** those versions copied every imported media file into IndexedDB as a Blob, which is what could grow to hundreds of GB in the app profile. 1.1.1 clears the legacy `media`, `mediaFolders` and `mediaTranscodes` stores once at startup; PDF and image-folder data are left untouched. The new server media index stores paths only.
+**Upgrading from 1.0.x:** those versions copied every imported media file into IndexedDB as a Blob, which is what could grow to hundreds of GB in the app profile. 1.1.2 clears the legacy `media`, `mediaFolders` and `mediaTranscodes` stores once at startup; PDF and image-folder data are left untouched. The new server media index stores paths only.
 
 To move magazines into the native app, quit the app, copy the contents of your web `data/issues` into the native `.../data/issues`, and reopen the app.
 

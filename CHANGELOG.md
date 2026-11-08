@@ -2,6 +2,12 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.2] — 2026-11-08
+
+### Changed
+
+- Clear orphaned HLS segment directories from the media home on server startup. These are temporary transcode chunks, not media files; the legacy `data/transcodes` directory is also removed.
+
 ## [1.1.1] — 2026-11-08
 
 ### Fixed
