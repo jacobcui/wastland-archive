@@ -2,6 +2,20 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.3.3] — 2026-11-08
+
+### Fixed
+
+- MPEG-TS files disguised as `.mp4` (and other non-native containers such as MKV/AVI) now go straight to on-demand HLS instead of a doomed native `<video>` attempt.
+- Seeking anywhere in those videos now shows real video. Re-encoded segments seek to an earlier keyframe and trim back to the requested segment start, because keyframes without PTS made ffmpeg's accurate seek drop every video frame. Previously only the first segment contained video, so playback stopped after about two seconds and jumping to 10 minutes stayed blank.
+- Generated segments are checked for MPEG-TS video payload. A failed keyframe seek is retried with a larger pre-roll instead of serving an audio-only fragment.
+- Removed the slow whole-file `showinfo` keyframe fallback. When `ffprobe` is unavailable, the server re-encodes instead of blocking playback for up to a minute.
+- Media scanning now ignores hidden files, including macOS `._*.mp4` AppleDouble sidecars.
+
+### Changed
+
+- HLS segments remain memory-only (128 MB cap) and are released when playback stops. No transcode directory or segment cache is written under the media home, `data/` or the app bundle.
+
 ## [1.3.2] — 2026-11-08
 
 ### Fixed

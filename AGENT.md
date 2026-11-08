@@ -99,13 +99,23 @@ stay outside it.
   `showDirectoryPicker`-only flow unless you also solve the server path.
 - Server index endpoints: `GET /api/media-library`, `POST /api/media-library/folders`,
   rescan/delete/update item routes, `/file/:id`, `/subtitle/:id`.
-- H.264/AAC MP4 plays natively when the container is browser-compatible; server
-  HLS uses stream copy for H.264/AAC and keyframe-aligned segments. Unsupported
-  codecs use on-demand libx264. Do not reintroduce full-file uploads or fixed 2s
-  cuts that overlap source GOPs.
-- Stream copy requires a reliable keyframe map. If keyframe probing finds missing
-  `N/A` PTS or an implausible GOP map, the server must disable copy and re-encode
-  segments on demand; ffmpeg cannot mux copy-cut segments from those files.
+- Browser-native playback is only attempted for MP4/WebM containers. The server
+  exposes `container` and `nativePlayable`; MPEG-TS (including `.mp4`-named TS),
+  Matroska, AVI etc. go straight to on-demand HLS so the browser never stalls on a
+  demuxer it cannot handle.
+- Stream copy is limited to MP4 H.264 sources with a reliable keyframe map. TS/MKV/AVI
+  and unreliable probes re-encode on demand with libx264/AAC. Do not reintroduce
+  full-file uploads.
+- Re-encoded segments must use the pre-roll seek pattern: input
+  `-ss (start - 12s) -noaccurate_seek`, then output-side `-ss 12s -t duration`.
+  Keyframes with missing PTS make a direct `-ss start` accurate seek drop every
+  video frame, producing audio-only fragments. Segment timestamps still start at
+  the playlist position via `-output_ts_offset`.
+- Every generated segment is checked for MPEG-TS video payload (PAT/PMT); a failed
+  seek retries with a larger pre-roll. Do not serve audio-only fragments.
+- ffprobe is optional (native builds do not bundle it). Probe failures disable
+  stream copy; do not reintroduce the whole-file showinfo fallback.
+- Scanner skips hidden files, including macOS AppleDouble `._name.mp4` sidecars.
 - The playlist has a persisted **目录级 / 文件级** display switch. Folder level starts
   with folders collapsed and reveals a folder's files when it is expanded; file level
   expands all folders. It is a UI preference in localStorage, not part of the server

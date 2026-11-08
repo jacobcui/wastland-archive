@@ -74,6 +74,68 @@ function mimeOf(name) {
   return MIME[extOf(name)] || "application/octet-stream";
 }
 
+/* Cheap container sniffing: browsers can natively demux MP4/WebM only. An
+   MPEG-TS file named .mp4 must go through HLS, otherwise Chromium reports a
+   demuxer error after a failed native attempt (and some builds glitch). */
+function detectContainer(filePath, name) {
+  let buffer = Buffer.alloc(0);
+  try {
+    const fd = fs.openSync(filePath, "r");
+    try {
+      buffer = Buffer.alloc(1024);
+      const read = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      buffer = buffer.subarray(0, read);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return "missing";
+  }
+  const ext = extOf(name);
+  if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp") return "mp4";
+  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return ext === "webm" ? "webm" : "matroska";
+  }
+  if (buffer.length >= 3 && buffer[0] === 0x47 && (buffer.length < 188 || buffer[188] === 0x47)) return "mpegts";
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF") {
+    const riff = buffer.toString("ascii", 8, 12);
+    if (riff === "AVI ") return "avi";
+    if (riff === "WAVE") return "wav";
+  }
+  if (buffer.length >= 3 && buffer.toString("ascii", 0, 3) === "FLV") return "flv";
+  if (buffer.length >= 4 && buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x01 && buffer[3] === 0xba) return "mpeg";
+  if (buffer.length >= 4 && buffer.toString("ascii", 0, 4) === "OggS") return "ogg";
+  if (buffer.length >= 4 && buffer.toString("ascii", 0, 4) === "fLaC") return "flac";
+  if (buffer.length >= 8 && buffer[0] === 0x30 && buffer[1] === 0x26 && buffer[2] === 0xb2 && buffer[3] === 0x75) return "asf";
+  if (buffer.length >= 3 && buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) return "mp3";
+  if (buffer.length >= 3 && buffer.toString("ascii", 0, 3) === "ID3") return "mp3";
+  return "unknown";
+}
+
+function isNativePlayable(item, container) {
+  const ext = extOf(item.name);
+  if ((item.kind || kindOf(item.name)) !== "video") return true;
+  if (container === "mp4") return ["mp4", "m4v", "mov"].includes(ext);
+  if (container === "webm") return ext === "webm";
+  return false;
+}
+
+let containersMigrated = false;
+
+function ensureItemContainers() {
+  if (containersMigrated) return;
+  containersMigrated = true;
+  const data = load();
+  let changed = false;
+  for (const item of data.items) {
+    if (typeof item.container === "string") continue;
+    const absolutePath = itemPath(item);
+    item.container = absolutePath ? detectContainer(absolutePath, item.name) : "missing";
+    changed = true;
+  }
+  if (changed) save();
+}
+
 function findFolder(id) {
   return load().folders.find((folder) => folder.id === id) || null;
 }
@@ -88,18 +150,23 @@ function publicFolder(folder) {
 
 function publicItem(item) {
   const folder = findFolder(item.folderId);
+  const kind = kindOf(item.relativePath || item.name) || item.kind || "video";
+  const container = typeof item.container === "string" ? item.container : "unknown";
   return {
     ...item,
     absolutePath: folder ? path.join(folder.rootPath, item.relativePath) : "",
     fileUrl: "/api/media-library/file/" + item.id,
     subtitleUrl: item.subtitleRelative || item.subtitleText ? "/api/media-library/subtitle/" + item.id : null,
     hasSubtitle: Boolean(item.subtitleRelative || item.subtitleText),
-    kind: kindOf(item.relativePath || item.name) || item.kind || "video",
+    kind,
+    container,
+    nativePlayable: isNativePlayable({ ...item, kind }, container),
     type: mimeOf(item.relativePath || item.name),
   };
 }
 
 function snapshot() {
+  ensureItemContainers();
   const data = load();
   return {
     version: data.version,
@@ -110,6 +177,8 @@ function snapshot() {
       .map(publicFolder),
     items: data.items
       .filter((item) => findFolder(item.folderId))
+      /* AppleDouble resource forks (._name.mp4) are not media. */
+      .filter((item) => !path.basename(item.relativePath || item.name).startsWith("."))
       .map(publicItem)
       .sort((a, b) => (a.relativePath || a.name).localeCompare(b.relativePath || b.name, "zh-CN", { numeric: true, sensitivity: "base" })),
   };
@@ -144,6 +213,9 @@ async function scanFolder(folder) {
         continue;
       }
       if (!entry.isFile()) continue;
+      /* Hidden files, including macOS AppleDouble "._name" resource forks,
+         are never playable media. */
+      if (entry.name.startsWith(".")) continue;
       const kind = kindOf(entry.name);
       if (!kind) continue;
       const relPath = relDir ? relDir + "/" + entry.name : entry.name;
@@ -177,6 +249,7 @@ async function scanFolder(folder) {
       item.size = stat.size;
       item.kind = kind;
       item.type = mimeOf(entry.name);
+      item.container = detectContainer(abs, entry.name);
       item.lastModified = stat.mtimeMs;
       item.subtitleRelative = subtitleRelative;
       if (subtitleName && !item.subtitleName) item.subtitleName = subtitleName;

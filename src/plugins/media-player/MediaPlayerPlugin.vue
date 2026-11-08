@@ -1231,6 +1231,17 @@ async function openMedia(row, { autoplay = false } = {}) {
       player.error = "服务端媒体库没有返回文件地址。";
       return;
     }
+    /* Chromium cannot demux MPEG-TS/MKV. Trying the raw file first either
+       fails slowly or plays a broken stream, so go straight to on-demand HLS
+       when the server reports the container is not browser-native. */
+    if (row.kind === "video" && row.nativePlayable === false) {
+      if (streamBusy.value) dropStreaming();
+      streamState.value = "transcoding";
+      streamStatus.value = "该容器需要本机转码，正在准备…";
+      await nextTick();
+      runAutoFallback(row, { autoplay });
+      return;
+    }
     objectUrl.value = new URL(row.fileUrl, window.location.href).href;
   } else {
     const type = cached ? cached.type : row.type || mimeOf({ name: row.name, type: row.type });
@@ -1884,7 +1895,7 @@ function onMediaError(event) {
 
 let fallbackRunningId = "";
 
-async function runAutoFallback(row) {
+async function runAutoFallback(row, { autoplay = true } = {}) {
   if (!active.value || active.value.id !== row.id || fallbackRunningId === row.id) return;
   fallbackRunningId = row.id;
   try {
@@ -1892,7 +1903,7 @@ async function runAutoFallback(row) {
       // A previous aborted stream can leave the UI in a busy state. Clear it
       // before starting a new session so the retry does not fail immediately.
       if (streamBusy.value) dropStreaming();
-      const streamed = await streamAndPlay({ automatic: true });
+      const streamed = await streamAndPlay({ automatic: true, autoplay });
       if (streamed) return;
       if (!active.value || active.value.id !== row.id) return;
       if ((row.size || 0) > 150 * 1024 * 1024) {
@@ -1996,7 +2007,7 @@ function failStream(message) {
   player.error = "无法播放该媒体。流式转码失败: " + message;
 }
 
-async function attachStream(playlist) {
+async function attachStream(playlist, { autoplay = true } = {}) {
   streamMode.value = true;
   clearObjectUrl();
   player.error = null;
@@ -2005,9 +2016,9 @@ async function attachStream(playlist) {
   player.playing = false;
   player.currentTime = 0;
   player.duration = 0;
-  pendingAutoplay.value = true;
+  pendingAutoplay.value = autoplay;
   streamState.value = "starting";
-  streamStatus.value = "首段已就绪，开始播放…";
+  streamStatus.value = autoplay ? "首段已就绪，开始播放…" : "首段已就绪";
   await nextTick();
   const video = videoRef.value;
   if (!video) throw new Error("视频元素未就绪");
@@ -2024,7 +2035,7 @@ async function attachStream(playlist) {
     hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(playlist));
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       applyPendingSeek(video);
-      video.play().catch(() => {});
+      if (autoplay) video.play().catch(() => {});
     });
     hls.on(Hls.Events.ERROR, (_event, data) => {
       if (data.fatal) failStream(data.details || "HLS 播放错误");
@@ -2032,13 +2043,13 @@ async function attachStream(playlist) {
   } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = playlist;
     video.load();
-    video.play().catch(() => {});
+    if (autoplay) video.play().catch(() => {});
   } else {
     throw new Error("当前浏览器不支持 HLS 流式播放");
   }
 }
 
-async function streamAndPlay({ automatic = false } = {}) {
+async function streamAndPlay({ automatic = false, autoplay = true } = {}) {
   if (streamBusy.value || !active.value) {
     if (streamBusy.value) streamStatus.value = "上一段转码尚未结束，请重试";
     return false;
@@ -2053,7 +2064,7 @@ async function streamAndPlay({ automatic = false } = {}) {
   player.playing = false;
   player.currentTime = pendingSeek.value || 0;
   player.duration = 0;
-  pendingAutoplay.value = true;
+  pendingAutoplay.value = autoplay;
   streamState.value = "transcoding";
   streamProgress.value = 0;
   streamStatus.value = "检查转码缓存…";
@@ -2067,7 +2078,7 @@ async function streamAndPlay({ automatic = false } = {}) {
         streamStatus.value = cached.ready ? "恢复上次转码会话…" : "恢复转码，等待首段…";
         if (!cached.ready) await waitForStream(record.sessionId, row.id, token);
         if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
-        await attachStream(cached.playlist);
+        await attachStream(cached.playlist, { autoplay });
         return true;
       }
       await dropMediaTranscode(row.id);
@@ -2086,7 +2097,7 @@ async function streamAndPlay({ automatic = false } = {}) {
       streamState.value = "transcoding";
       streamProgress.value = 0;
       streamStatus.value = "按需转码中…";
-      await attachStream(result.playlist);
+      await attachStream(result.playlist, { autoplay });
       return true;
     }
     let source = fileCache.get(row.id) || row.data || row.blob || null;
@@ -2115,7 +2126,7 @@ async function streamAndPlay({ automatic = false } = {}) {
     streamStatus.value = "转码中，等待首段…";
     const info = await waitForStream(result.id, row.id, token);
     if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
-    await attachStream(info.playlist);
+    await attachStream(info.playlist, { autoplay });
     return true;
   } catch (error) {
     if (error && error.name === "AbortError") return false;

@@ -217,6 +217,12 @@ const transcodeSessions = new Map();
 const hlsSessions = new Map();
 const HLS_SEGMENT_SECONDS = 2;
 const HLS_MEMORY_LIMIT = 128 * 1024 * 1024;
+/* MPEG-TS files can have keyframes without PTS. ffmpeg's accurate seek then
+   drops every video frame and produces audio-only segments. Re-encoded
+   segments seek to an earlier keyframe instead and trim back to the playlist
+   position, so playback and seeking still work. */
+const HLS_SEEK_PREROLL_SECONDS = 12;
+const HLS_SEEK_PREROLL_RETRIES = [HLS_SEEK_PREROLL_SECONDS, 30, 90];
 
 function probeMediaInfo(filePath) {
   return new Promise((resolve) => {
@@ -297,22 +303,10 @@ async function probeKeyframeTimes(filePath, duration) {
     ], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
     probe = parseKeyframeProbe(stdout, duration);
   } catch {
-    try {
-      const { stderr } = await execFileAsync(FFMPEG_BIN, [
-        "-hide_banner",
-        "-loglevel", "info",
-        "-skip_frame", "nokey",
-        "-i", filePath,
-        "-map", "0:v:0",
-        "-vf", "showinfo",
-        "-an",
-        "-f", "null",
-        "-",
-      ], { timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
-      probe = parseKeyframeProbe(stderr, duration);
-    } catch (error) {
-      probe = parseKeyframeProbe(String(error && error.stderr ? error.stderr : ""), duration);
-    }
+    /* ffprobe is not bundled in native builds. The old showinfo fallback
+       decoded the whole file and could block playback for a minute, so treat
+       the file as unprobeable and let on-demand re-encoding handle it. */
+    return { times: [], missing: 0, reliable: false };
   }
   return { ...probe, reliable: keyframeProbeIsUsable(probe, duration) };
 }
@@ -384,20 +378,83 @@ function trimPlayedHlsSegments(session, currentIndex) {
   }
 }
 
-function generateHlsSegment(session, index) {
-  if (session.segments.has(index)) {
-    session.lastAccess = Date.now();
-    return Promise.resolve(session.segments.get(index));
+/* MPEG-TS stream types that carry video. A re-encoded segment should always
+   contain video packets; checking this catches a failed keyframe seek instead
+   of serving an audio-only fragment that silently stalls the player. */
+const TS_VIDEO_STREAM_TYPES = new Set([0x01, 0x02, 0x10, 0x1b, 0x1e, 0x21, 0x24, 0x42, 0xea]);
+
+function tsHasVideoPayload(buffer) {
+  if (!buffer || buffer.length < 188) return false;
+  const pmtPids = new Set();
+  const videoPids = new Set();
+  for (let offset = 0; offset + 188 <= buffer.length; offset += 188) {
+    if (buffer[offset] !== 0x47) {
+      const next = buffer.indexOf(0x47, offset + 1);
+      if (next < 0) break;
+      offset = next - 188;
+      continue;
+    }
+    const pid = ((buffer[offset + 1] & 0x1f) << 8) | buffer[offset + 2];
+    const payloadStart = (buffer[offset + 1] & 0x40) !== 0;
+    if (!payloadStart) continue;
+    const adaptation = (buffer[offset + 3] >> 4) & 0x3;
+    if (adaptation === 2) continue;
+    let cursor = offset + 4;
+    if (adaptation === 3) cursor += 1 + buffer[cursor];
+    if (cursor >= offset + 188) continue;
+    const section = cursor + 1 + buffer[cursor];
+    if (section + 8 > offset + 188) continue;
+    const tableId = buffer[section];
+    const sectionLength = ((buffer[section + 1] & 0x0f) << 8) | buffer[section + 2];
+    const sectionEnd = section + 3 + sectionLength - 4;
+    if (sectionEnd > offset + 188) continue;
+    if (pid === 0 && tableId === 0x00) {
+      for (let entry = section + 8; entry + 4 <= sectionEnd; entry += 4) {
+        const program = (buffer[entry] << 8) | buffer[entry + 1];
+        if (!program) continue;
+        pmtPids.add(((buffer[entry + 2] & 0x1f) << 8) | buffer[entry + 3]);
+      }
+    } else if (pmtPids.has(pid) && tableId === 0x02 && section + 12 <= offset + 188) {
+      const programInfoLength = ((buffer[section + 10] & 0x0f) << 8) | buffer[section + 11];
+      let entry = section + 12 + programInfoLength;
+      while (entry + 5 <= sectionEnd) {
+        const streamType = buffer[entry];
+        const elementaryPid = ((buffer[entry + 1] & 0x1f) << 8) | buffer[entry + 2];
+        const esInfoLength = ((buffer[entry + 3] & 0x0f) << 8) | buffer[entry + 4];
+        if (TS_VIDEO_STREAM_TYPES.has(streamType)) videoPids.add(elementaryPid);
+        entry += 5 + esInfoLength;
+      }
+    }
   }
-  if (session.generating.has(index)) return session.generating.get(index);
+  if (!videoPids.size) return false;
+  let payloads = 0;
+  for (let offset = 0; offset + 188 <= buffer.length; offset += 188) {
+    if (buffer[offset] !== 0x47) continue;
+    const pid = ((buffer[offset + 1] & 0x1f) << 8) | buffer[offset + 2];
+    if (!videoPids.has(pid)) continue;
+    if (((buffer[offset + 3] >> 4) & 0x3) & 1) payloads += 1;
+    if (payloads > 4) return true;
+  }
+  return false;
+}
+
+function hlsSegmentArgs(session, index, preRoll) {
   const start = session.starts[index];
   const duration = session.durations[index];
-  const args = [
-    "-hide_banner",
-    "-loglevel", "warning",
-    "-nostdin",
-    "-ss", start.toFixed(3),
-    "-i", session.filePath,
+  const seekFrom = preRoll > 0 ? Math.max(0, start - preRoll) : start;
+  const trim = Math.max(0, start - seekFrom);
+  const args = ["-hide_banner", "-loglevel", "warning", "-nostdin"];
+  if (seekFrom > 0) {
+    args.push("-ss", seekFrom.toFixed(3));
+    /* With a broken keyframe map, accurate seeking drops all video frames. */
+    if (preRoll > 0) args.push("-noaccurate_seek");
+  }
+  args.push("-i", session.filePath);
+  /* Decode from the earlier point, then trim back to the exact segment start
+     using an output-side seek. This keeps timestamps aligned with the VOD
+     playlist while avoiding the broken accurate-seek path. */
+  if (preRoll > 0 && trim > 0) args.push("-ss", trim.toFixed(3));
+  args.push(
     "-t", duration.toFixed(3),
     "-map", "0:v:0",
     "-map", "0:a:0?",
@@ -408,10 +465,13 @@ function generateHlsSegment(session, index) {
     "-output_ts_offset", start.toFixed(3),
     "-f", "mpegts",
     "pipe:1",
-  ];
-  const useCopyVideo = session.copyVideo;
-  const useCopyAudio = session.copyAudio;
-  const promise = new Promise((resolve, reject) => {
+  );
+  return args;
+}
+
+function runHlsSegmentProcess(session, index, preRoll) {
+  const args = hlsSegmentArgs(session, index, preRoll);
+  return new Promise((resolve, reject) => {
     const child = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
     session.procs.add(child);
     const chunks = [];
@@ -419,12 +479,7 @@ function generateHlsSegment(session, index) {
     let stderr = "";
     const finish = (error, buffer) => {
       session.procs.delete(child);
-      session.generating.delete(index);
       if (error) return reject(error);
-      session.segments.set(index, buffer);
-      session.bytes += buffer.length;
-      session.lastAccess = Date.now();
-      evictHlsSegments(session, index);
       resolve(buffer);
     };
     child.stdout.on("data", (chunk) => {
@@ -442,19 +497,48 @@ function generateHlsSegment(session, index) {
       }
       finish(null, Buffer.concat(chunks));
     });
-  }).catch((error) => {
-    /* Stream copy can still fail on files whose packet timestamps look usable
-       to the probe (notably native builds where ffprobe is unavailable) but
-       cannot be muxed. Retry this segment, and all later ones, with re-encode. */
-    if ((!useCopyVideo && !useCopyAudio) || !hlsSessions.has(session.id)) throw error;
-    session.copyVideo = false;
-    session.copyAudio = false;
-    session.segments.clear();
-    session.bytes = 0;
-    return generateHlsSegment(session, index);
   });
-  session.generating.set(index, promise);
-  return promise;
+}
+
+function generateHlsSegment(session, index) {
+  if (session.segments.has(index)) {
+    session.lastAccess = Date.now();
+    return Promise.resolve(session.segments.get(index));
+  }
+  if (session.generating.has(index)) return session.generating.get(index);
+  const useCopy = session.copyVideo;
+  const job = (async () => {
+    if (useCopy) {
+      try {
+        const buffer = await runHlsSegmentProcess(session, index, 0);
+        if (tsHasVideoPayload(buffer)) return buffer;
+      } catch {}
+      /* Stream copy produced no video (or failed). Discard any copied
+         fragments and re-encode this segment and all later ones. */
+      session.copyVideo = false;
+      session.copyAudio = false;
+      session.segments.clear();
+      session.bytes = 0;
+    }
+    let buffer = null;
+    for (const preRoll of HLS_SEEK_PREROLL_RETRIES) {
+      buffer = await runHlsSegmentProcess(session, index, preRoll);
+      if (tsHasVideoPayload(buffer)) return buffer;
+    }
+    throw new Error("视频分片没有解码出画面，请重试");
+  })()
+    .then((buffer) => {
+      session.segments.set(index, buffer);
+      session.bytes += buffer.length;
+      session.lastAccess = Date.now();
+      evictHlsSegments(session, index);
+      return buffer;
+    })
+    .finally(() => {
+      if (session.generating.get(index) === job) session.generating.delete(index);
+    });
+  session.generating.set(index, job);
+  return job;
 }
 
 function stopHlsSession(id) {
@@ -864,15 +948,25 @@ app.post("/api/media-library/items/:id/transcode", async (req, res) => {
     let duration = mediaInfo.duration;
     if (!(duration > 0)) duration = Number(req.body && req.body.duration) || 0;
     if (!(duration > 0)) return res.status(400).json({ ok: false, error: "无法读取视频时长" });
-    const probe = await probeKeyframeTimes(info.absolutePath, duration);
-    /* Stream copy is only safe when every source keyframe has a readable PTS.
-       Some MPEG-TS files (even with an .mp4 extension) lose keyframe
-       timestamps; ffmpeg then fails to mux a segment cut at 2s with
-       "first pts and dts value must be set". Re-encode those on demand. */
-    const copyVideo = probe.reliable && mediaInfo.videoCodec === "h264";
-    const session = createHlsSession(info.absolutePath, duration, probe.reliable ? probe.times : [], {
+    const container = String(info.item.container || "").toLowerCase();
+    /* Stream copy needs a reliable keyframe map, and only MP4 files usually
+       provide one. MPEG-TS (even when named .mp4) often has keyframes without
+       PTS, so probing is slow and copy-cut segments cannot be muxed. Re-encode
+       those directly with the pre-roll seek path. */
+    let keyframes = [];
+    let copyVideo = false;
+    let copyAudio = false;
+    if (container === "mp4" && mediaInfo.videoCodec === "h264") {
+      const probe = await probeKeyframeTimes(info.absolutePath, duration);
+      if (probe.reliable) {
+        keyframes = probe.times;
+        copyVideo = true;
+        copyAudio = ["aac", "mp3"].includes(mediaInfo.audioCodec);
+      }
+    }
+    const session = createHlsSession(info.absolutePath, duration, keyframes, {
       copyVideo,
-      copyAudio: copyVideo && ["aac", "mp3"].includes(mediaInfo.audioCodec),
+      copyAudio,
     });
     res.json({
       ok: true,
