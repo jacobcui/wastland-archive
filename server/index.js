@@ -206,6 +206,172 @@ try {
 const FFMPEG_BIN = process.env.FFMPEG_PATH || bundledFfmpeg || "ffmpeg";
 const transcodeSessions = new Map();
 
+/* On-demand, memory-backed HLS for server-library items. No ffmpeg process is
+   started until HLS.js asks for a segment; segments live in this Map only. */
+const hlsSessions = new Map();
+const HLS_SEGMENT_SECONDS = 2;
+const HLS_MEMORY_LIMIT = 128 * 1024 * 1024;
+
+function probeVideoDuration(filePath) {
+  return new Promise((resolve) => {
+    let stderr = "";
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const child = spawn(FFMPEG_BIN, ["-hide_banner", "-i", filePath], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    const timer = setTimeout(() => {
+      try { child.kill("SIGKILL"); } catch {}
+      done(0);
+    }, 10000);
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString()).slice(-30000);
+    });
+    child.on("error", () => { clearTimeout(timer); done(0); });
+    child.on("close", () => {
+      clearTimeout(timer);
+      const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (!match) return done(0);
+      done(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]));
+    });
+  });
+}
+
+function createHlsSession(filePath, duration) {
+  const id = crypto.randomBytes(12).toString("hex");
+  const total = Number(duration) || 0;
+  const session = {
+    id,
+    filePath,
+    duration: total,
+    segmentSeconds: HLS_SEGMENT_SECONDS,
+    count: Math.max(1, Math.ceil(total / HLS_SEGMENT_SECONDS)),
+    segments: new Map(),
+    generating: new Map(),
+    bytes: 0,
+    lastAccess: Date.now(),
+    procs: new Set(),
+  };
+  hlsSessions.set(id, session);
+  return session;
+}
+
+function hlsPlaylist(session) {
+  const lines = [
+    "#EXTM3U",
+    "#EXT-X-VERSION:3",
+    "#EXT-X-TARGETDURATION:2",
+    "#EXT-X-MEDIA-SEQUENCE:0",
+    "#EXT-X-PLAYLIST-TYPE:VOD",
+  ];
+  for (let index = 0; index < session.count; index += 1) {
+    const start = index * session.segmentSeconds;
+    const duration = Math.min(session.segmentSeconds, Math.max(0.1, session.duration - start));
+    lines.push("#EXTINF:" + duration.toFixed(3) + ",");
+    lines.push("/api/media-library/hls/" + session.id + "/seg/" + index + ".ts");
+  }
+  lines.push("#EXT-X-ENDLIST");
+  return lines.join("\n") + "\n";
+}
+
+function evictHlsSegments(session, keepIndex) {
+  if (session.bytes <= HLS_MEMORY_LIMIT) return;
+  for (const [index, buffer] of session.segments) {
+    if (session.bytes <= HLS_MEMORY_LIMIT || index === keepIndex) break;
+    session.segments.delete(index);
+    session.bytes -= buffer.length;
+  }
+}
+
+function trimPlayedHlsSegments(session, currentIndex) {
+  const keepFrom = Math.max(0, currentIndex - 4);
+  for (const [index, buffer] of session.segments) {
+    if (index >= keepFrom) break;
+    session.segments.delete(index);
+    session.bytes -= buffer.length;
+  }
+}
+
+function generateHlsSegment(session, index) {
+  if (session.segments.has(index)) {
+    session.lastAccess = Date.now();
+    return Promise.resolve(session.segments.get(index));
+  }
+  if (session.generating.has(index)) return session.generating.get(index);
+  const start = index * session.segmentSeconds;
+  const duration = Math.min(session.segmentSeconds, Math.max(0.1, session.duration - start));
+  const args = [
+    "-hide_banner",
+    "-loglevel", "warning",
+    "-nostdin",
+    "-ss", start.toFixed(3),
+    "-i", session.filePath,
+    "-t", duration.toFixed(3),
+    "-map", "0:v:0",
+    "-map", "0:a:0?",
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-pix_fmt", "yuv420p",
+    "-c:a", "aac",
+    "-b:a", "128k",
+    "-muxdelay", "0",
+    "-muxpreload", "0",
+    "-output_ts_offset", start.toFixed(3),
+    "-f", "mpegts",
+    "pipe:1",
+  ];
+  const promise = new Promise((resolve, reject) => {
+    const child = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
+    session.procs.add(child);
+    const chunks = [];
+    let size = 0;
+    let stderr = "";
+    const finish = (error, buffer) => {
+      session.procs.delete(child);
+      session.generating.delete(index);
+      if (error) return reject(error);
+      session.segments.set(index, buffer);
+      session.bytes += buffer.length;
+      session.lastAccess = Date.now();
+      evictHlsSegments(session, index);
+      resolve(buffer);
+    };
+    child.stdout.on("data", (chunk) => {
+      size += chunk.length;
+      if (size <= 256 * 1024 * 1024) chunks.push(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString()).slice(-8000);
+    });
+    child.on("error", (error) => finish(error));
+    child.on("close", (code) => {
+      if (!hlsSessions.has(session.id)) return reject(new Error("转码会话已结束"));
+      if (code !== 0) {
+        return finish(new Error("ffmpeg 按需转码失败" + (stderr ? ": " + stderr.trim().split("\n").slice(-2).join(" ") : "")));
+      }
+      finish(null, Buffer.concat(chunks));
+    });
+  });
+  session.generating.set(index, promise);
+  return promise;
+}
+
+function stopHlsSession(id) {
+  const session = hlsSessions.get(id);
+  if (!session) return;
+  hlsSessions.delete(id);
+  for (const child of session.procs) {
+    try { child.kill("SIGKILL"); } catch {}
+  }
+  session.segments.clear();
+  session.generating.clear();
+}
+
 function transcodeSnapshot(id) {
   const session = transcodeSessions.get(id);
   if (!session) return null;
@@ -226,6 +392,7 @@ function transcodeSnapshot(id) {
 }
 
 function stopTranscode(id) {
+  stopHlsSession(id);
   const session = transcodeSessions.get(id);
   if (!session) return;
   transcodeSessions.delete(id);
@@ -588,75 +755,59 @@ app.get("/api/media-library/subtitle/:id", (req, res) => {
   res.send(info.text);
 });
 
-app.post("/api/media-library/items/:id/transcode", (req, res) => {
+app.post("/api/media-library/items/:id/transcode", async (req, res) => {
   const info = mediaFileInfo(req.params.id);
   if (!info) return res.status(404).json({ ok: false, error: "媒体文件不存在" });
-  const id = crypto.randomBytes(12).toString("hex");
-  const dir = path.join(TRANSCODE_ROOT, id);
-  const playlistPath = path.join(dir, "index.m3u8");
-  fs.mkdirSync(dir, { recursive: true });
-  const args = [
-    "-hide_banner",
-    "-loglevel", "warning",
-    "-y",
-    "-i", info.absolutePath,
-    "-c:v", "libx264",
-    "-preset", "veryfast",
-    "-crf", "23",
-    "-pix_fmt", "yuv420p",
-    "-c:a", "aac",
-    "-b:a", "128k",
-    "-force_key_frames", "expr:gte(t,n_forced*2)",
-    "-hls_time", "2",
-    "-hls_list_size", "0",
-    "-hls_playlist_type", "event",
-    "-hls_segment_filename", path.join(dir, "seg%05d.ts"),
-    playlistPath,
-  ];
-  const logPath = path.join(dir, "ffmpeg.log");
-  const log = fs.createWriteStream(logPath);
-  const session = {
-    id,
-    dir,
-    inputPath: info.absolutePath,
-    playlistPath,
-    status: "running",
-    error: null,
-    proc: null,
-    startedAt: Date.now(),
-  };
-  transcodeSessions.set(id, session);
   try {
-    session.proc = spawn(FFMPEG_BIN, args, { cwd: dir, stdio: ["ignore", "ignore", "pipe"] });
+    let duration = await probeVideoDuration(info.absolutePath);
+    if (!(duration > 0)) duration = Number(req.body && req.body.duration) || 0;
+    if (!(duration > 0)) return res.status(400).json({ ok: false, error: "无法读取视频时长" });
+    const session = createHlsSession(info.absolutePath, duration);
+    res.json({
+      ok: true,
+      id: session.id,
+      duration,
+      mode: "memory",
+      playlist: "/api/media-library/hls/" + session.id + "/index.m3u8",
+    });
   } catch (error) {
-    session.status = "error";
-    session.error = error.message;
-    return res.status(500).json({ ok: false, error: "无法启动 ffmpeg: " + error.message });
+    res.status(500).json({ ok: false, error: error.message });
   }
-  if (session.proc.stderr) session.proc.stderr.pipe(log);
-  session.proc.on("error", (error) => {
-    session.status = "error";
-    session.error = error.code === "ENOENT" ? "本机没有找到 ffmpeg，请安装 ffmpeg 后重试" : error.message;
-  });
-  session.proc.on("close", (code) => {
-    if (code === 0) {
-      session.status = "done";
-      return;
-    }
-    session.status = "error";
-    if (!session.error) {
-      let detail = "";
-      try { detail = fs.readFileSync(logPath, "utf8").trim().split("\n").slice(-3).join(" ").slice(-500); } catch {}
-      session.error = "ffmpeg 转码失败" + (detail ? ": " + detail : "");
-    }
-  });
-  res.json({ ok: true, id, playlist: "/api/transcode/" + id + "/index.m3u8" });
+});
+
+app.get("/api/media-library/hls/:id/index.m3u8", (req, res) => {
+  const session = hlsSessions.get(req.params.id);
+  if (!session) return res.status(404).end();
+  session.lastAccess = Date.now();
+  res.type("application/vnd.apple.mpegurl");
+  res.setHeader("Cache-Control", "no-store");
+  res.send(hlsPlaylist(session));
+});
+
+app.get("/api/media-library/hls/:id/seg/:index.ts", async (req, res) => {
+  const session = hlsSessions.get(req.params.id);
+  if (!session) return res.status(404).end();
+  const index = Number(req.params.index);
+  if (!Number.isInteger(index) || index < 0 || index >= session.count) return res.status(404).end();
+  try {
+    const buffer = await generateHlsSegment(session, index);
+    trimPlayedHlsSegments(session, index);
+    res.type("video/mp2t");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).type("text/plain").send(error.message);
+  }
 });
 
 const transcodeCleanup = setInterval(() => {
   const cutoff = Date.now() - 60 * 60 * 1000;
   for (const [id, session] of transcodeSessions) {
     if (session.startedAt < cutoff) stopTranscode(id);
+  }
+  const hlsCutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, session] of hlsSessions) {
+    if (session.lastAccess < hlsCutoff) stopHlsSession(id);
   }
   try {
     for (const name of fs.readdirSync(TRANSCODE_ROOT)) {

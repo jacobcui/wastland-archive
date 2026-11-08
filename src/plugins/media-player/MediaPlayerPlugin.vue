@@ -1743,6 +1743,9 @@ function onPlay(event) {
   if (streamMode.value) {
     streamState.value = "playing";
     streamStatus.value = "";
+    if (hls) {
+      try { hls.startLoad(); } catch {}
+    }
   }
   if (active.value && active.value.kind === "audio") {
     ensureAudioGraph();
@@ -1767,6 +1770,9 @@ function onPlay(event) {
 function onPause(event) {
   if (!isCurrentMedia(event)) return;
   player.playing = false;
+  if (streamMode.value && hls) {
+    try { hls.stopLoad(); } catch {}
+  }
   const el = mediaEl();
   if (el && active.value) {
     active.value.position = Number.isFinite(el.currentTime) ? el.currentTime : 0;
@@ -2044,18 +2050,20 @@ async function streamAndPlay({ automatic = false } = {}) {
       await dropMediaTranscode(row.id);
     }
     if (row.server) {
-      const response = await fetch("/api/media-library/items/" + encodeURIComponent(row.id) + "/transcode", { method: "POST" });
+      const response = await fetch("/api/media-library/items/" + encodeURIComponent(row.id) + "/transcode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration: Number(row.duration) || 0 }),
+      });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.ok) throw new Error(result.error || "无法启动本机转码");
+      if (!response.ok || !result.ok) throw new Error(result.error || "无法启动按需转码");
       if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
       streamSessionId = result.id;
       streamStarted = false;
       streamState.value = "transcoding";
       streamProgress.value = 0;
-      streamStatus.value = "本机转码中，等待首段…";
-      const info = await waitForStream(result.id, row.id, token);
-      if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
-      await attachStream(info.playlist);
+      streamStatus.value = "按需转码中…";
+      await attachStream(result.playlist);
       return true;
     }
     let source = fileCache.get(row.id) || row.data || row.blob || null;
@@ -2668,7 +2676,7 @@ onBeforeUnmount(() => {
             </p>
           </details>
 
-          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在 {{ mediaHome || "服务端媒体目录" }}，换浏览器后仍可见。HLS 临时分片在停止播放或重启服务后删除，可随时清空；不上传外网。</p>
+          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在 {{ mediaHome || "服务端媒体目录" }}，换浏览器后仍可见。本机转码按需进行，分片只保存在内存，停止播放或关闭播放器即释放；不写入 transcodes，不上传外网。</p>
         </aside>
       </div>
 

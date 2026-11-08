@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../src/assets/logo-wordmark.png" alt="废土馆藏 Logo" width="440" /></p>
 
-**版本 1.1.6** · [更新日志](../CHANGELOG.md)
+**版本 1.1.7** · [更新日志](../CHANGELOG.md)
 
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
@@ -18,7 +18,7 @@
 - **插件库**：MKX 杂志档案、PDF 阅读、图片浏览、Media 四个独立插件。停用插件不会删除数据。
 - **原生桌面 App**：macOS（Apple Silicon + Intel）与 Windows x64 均为双击即用，内置 Node、Chromium、ffmpeg 与 Playwright，不再需要终端或单独 server。
 - **版本更新检查**：启动后后台检查 GitHub Releases（缓存 6 小时）；发现新版本会显示更新徽标，点击可下载；版本号旁的 ↻ 可立即检查。
-- **可恢复转码**：原生不支持的视频由本机 ffmpeg 边转 HLS 边播放；切走保留后台会话与播放位置，切回继续。
+- **按需转码**：原生不支持的视频使用内存 HLS；只有播放器请求片段时才启动 ffmpeg。暂停后停止继续生成，停止/关闭播放器即释放分片。
 - **废土背景**：内置 4 张原创废土风背景，也支持上传自定义图片到 ~/.wasteland_browser/bg_screens。
 - **中英双语**：右上角切换 English / 中文；语言包在 src/i18n/locales。
 
@@ -29,7 +29,7 @@
 | **MKX 杂志档案** | 同步 mkexue.com 过刊索引、镜像归档、下载与离线阅读；支持翻页、缩放、平移、双页、胶片。 | 服务端 data/issues + 浏览器 IndexedDB 阅读进度 |
 | **PDF 阅读** | 导入本地 PDF，断网重开，记住页码，继续或从头开始。 | IndexedDB wasteland-browser/pdfs |
 | **图片浏览** | 管理多个本地图片目录，按文件名/时间排序，灯箱与键盘翻页。 | IndexedDB 目录句柄 / 会话目录 |
-| **Media** | 本地视频音频、文件夹树播放列表、顺序/循环/单曲/随机、音频可视化、SRT/VTT 字幕、可恢复播放位置与 HLS 转码。源文件保留在原目录；媒体库索引在服务端，换浏览器仍然保留。 | `~/.wasteland_archive` / Application Support 中的服务端索引 + 本地 HLS 缓存 |
+| **Media** | 本地视频音频、文件夹树播放列表、顺序/循环/单曲/随机、音频可视化、SRT/VTT 字幕、可恢复播放位置与按需 HLS 转码。源文件保留在原目录；媒体库索引在服务端，HLS 分片只存内存。 | `~/.wasteland_archive` / Application Support 中的服务端索引 |
 
 ### MKX 档案
 
@@ -60,15 +60,15 @@
 - **服务端媒体库**：只需添加一次绝对目录路径——可以手动粘贴，也可以从系统目录选择器选择；服务端扫描后把索引、播放位置和字幕保存在 `~/.wasteland_archive`（原生 App 为 Application Support）。换浏览器后仍是同一个媒体库。
 - **不复制源文件**：媒体保留在原目录，不复制进 data/ 或 IndexedDB。
 - 优先使用浏览器原生解码。大体积 H.264/AAC MP4 直接原生播放；只有浏览器不支持的格式才走本机转码。
-- 原生失败时自动由本机 ffmpeg 生成 2 秒 HLS 片段，首段生成即播放。
-- 切到别的媒体再切回来：复用 HLS 会话与已生成片段，并从上次播放位置继续。
+- 原生失败时按需生成本机 HLS 片段；只有 HLS.js 请求时 ffmpeg 才运行，分片保存在内存。
+- 暂停后停止继续加载；停止/关闭播放器删除内存会话。切回时从保存的播放位置重新创建按需会话。
 - 音频可视化：波形、频谱条、线状频谱、径向频谱、粒子、山峦。
 - 全屏音频会自动隐藏所有控制条；移动鼠标会同时淡入文件信息、进度、退出和可视化选择。
 - 没有可用 ffmpeg 时，小文件自动退回 WASM 完整转码。
 
 示例：[sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4)（来自 samplelib.com）。
 
-> **1.1.6 升级说明。** 媒体库索引已从浏览器 IndexedDB 移到服务端。旧浏览器条目无法自动迁移，因为浏览器不会暴露绝对路径。请点击一次 **添加目录路径**，粘贴媒体根目录（例如 `/Volumes/MYBAK2/Movies`）；服务端扫描后，所有浏览器共用同一份媒体库。
+> **1.1.7 升级说明。** 媒体库索引已从浏览器 IndexedDB 移到服务端。旧浏览器条目无法自动迁移，因为浏览器不会暴露绝对路径。请点击一次 **添加目录路径**，粘贴媒体根目录（例如 `/Volumes/MYBAK2/Movies`）；服务端扫描后，所有浏览器共用同一份媒体库。
 
 ![Media 播放历史](../docs/media-history.png)
 
@@ -144,7 +144,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make bootstrap | 只检测/安装环境 |
 | make status | 查看进程 + 登录状态 |
 | make down | 停止服务 |
-| make package | 生成 Web 便携包 release/wasteland-archive-1.1.6.tar.gz |
+| make package | 生成 Web 便携包 release/wasteland-archive-1.1.7.tar.gz |
 | make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
 | make app-win | 生成 Windows x64 便携包 Wasteland-Archive-win-x64.zip |
 
@@ -157,10 +157,10 @@ make app
 输出（Apple Silicon + Intel）：
 
 ~~~text
-release/native/Wasteland-Archive-mac-arm64-1.1.6.dmg
-release/native/Wasteland-Archive-mac-arm64-1.1.6.zip
-release/native/Wasteland-Archive-mac-x64-1.1.6.dmg
-release/native/Wasteland-Archive-mac-x64-1.1.6.zip
+release/native/Wasteland-Archive-mac-arm64-1.1.7.dmg
+release/native/Wasteland-Archive-mac-arm64-1.1.7.zip
+release/native/Wasteland-Archive-mac-x64-1.1.7.dmg
+release/native/Wasteland-Archive-mac-x64-1.1.7.zip
 ~~~
 
 两个 DMG 都包含 App 和 **Applications 快捷方式**。打开 DMG，把 **废土馆藏.app** 拖到 Applications 上。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
@@ -181,7 +181,7 @@ make app-win
 输出：
 
 ~~~text
-release/native/Wasteland-Archive-win-x64-1.1.6.zip
+release/native/Wasteland-Archive-win-x64-1.1.7.zip
 ~~~
 
 在 Windows 10/11 x64 上解压，运行 **废土馆藏.exe** 即可。这是便携版，不需要安装 Node，也不需要单独启动 server；包内包含 Windows Electron、ffmpeg 和 Playwright headless Chromium。
@@ -211,9 +211,9 @@ src/i18n/locales/zh.js
 | PDF / 图片库 | IndexedDB wasteland-browser | 原生 App profile 内的同源 IndexedDB |
 | 1.0.x 旧媒体 Blob | 启动时自动清除一次 | 同上 |
 | 自定义背景 | ~/.wasteland_browser/bg_screens | 同一路径，互通 |
-| HLS 临时文件 | `~/.wasteland_archive/transcodes`（1 小时 TTL） | Application Support `transcodes` |
+| HLS 转码分片 | 服务端媒体库条目：仅内存，停止即清除；旧上传路线：`~/.wasteland_archive/transcodes` | 旧上传路线使用 Application Support |
 
-**从 1.0.x 升级：**旧版本把每个导入的媒体文件作为 Blob 复制进 IndexedDB，所以 App profile 可能膨胀到数百 GB。1.1.6 启动时会清除一次旧的 `media`、`mediaFolders`、`mediaTranscodes` 存储；PDF / 图片库不受影响。新的服务端媒体索引只保存路径。
+**从 1.0.x 升级：**旧版本把每个导入的媒体文件作为 Blob 复制进 IndexedDB，所以 App profile 可能膨胀到数百 GB。1.1.7 启动时会清除一次旧的 `media`、`mediaFolders`、`mediaTranscodes` 存储；PDF / 图片库不受影响。新的服务端媒体索引只保存路径。
 
 Windows 原生版的归档目录：
 
@@ -245,7 +245,7 @@ Electron（可选原生壳）
 ~~~
 
 - PDF.js 本地渲染，worker 与 CMaps 由本地服务提供。
-- 媒体源文件保留在原目录。媒体库索引、播放位置和字幕保存在 data/ 之外；另有临时 HLS 缓存。不复制媒体进 data/ 或 IndexedDB。
+- 媒体源文件保留在原目录。媒体库索引、播放位置和字幕保存在 data/ 之外；服务端媒体库的 HLS 分片只保存在内存。不复制媒体进 data/ 或 IndexedDB。
 - ~/.wasteland_browser/bg_screens 是 App 包外唯一共享的用户目录。
 
 ## 浏览器兼容

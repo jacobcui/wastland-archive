@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.7] — 2026-11-08
+
+### Changed
+
+- Server-backed media now uses on-demand, memory-backed HLS. The playlist is generated up front, but ffmpeg runs only when HLS.js requests a segment; segments are held in RAM (128 MB cap) and are released when playback stops/closes. Pausing stops further segment loading.
+- No continuous full-film transcode process and no growing `~/.wasteland_archive/transcodes` directory for server-library videos. The legacy upload transcode route remains only for compatibility.
+
 ## [1.1.6] — 2026-11-08
 
 ### Added

@@ -7,7 +7,7 @@ This file defines how an AI agent should handle update, fix and feature requests
 
 **Wasteland Archive / 废土馆藏** is a local-first desktop/browser archive of Chinese
 magazines, PDFs, image folders and local media. Repository:
-`jacobcui/wastland-archive`. Current version at the time of writing: **1.1.6**.
+`jacobcui/wastland-archive`. Current version at the time of writing: **1.1.7**.
 
 ### Architecture
 
@@ -74,8 +74,14 @@ stay outside it.
   - Items are absolute folder paths + relative file paths. Media files are **never**
     copied into IndexedDB, `data/` or the app bundle. Playback is streamed by
     `/api/media-library/file/:id` with byte ranges.
-  - HLS transcodes use `~/.wasteland_archive/transcodes` or Application Support
-    `transcodes`; orphaned dirs are cleared on server startup and have a short TTL.
+  - Server-library video transcodes are **on-demand and memory-backed**: the full
+    VOD playlist is generated, but ffmpeg runs only when HLS.js requests a segment.
+    Segments live in an in-memory Map (128 MB cap), pause stops loading, and
+    close/switch deletes the session. Do not reintroduce a continuous ffmpeg process
+    or a growing segment directory for normal playback.
+  - The legacy upload transcode route still uses
+    `~/.wasteland_archive/transcodes` / Application Support `transcodes`; orphaned
+    dirs are cleared on server startup and have a short TTL.
   - Legacy 1.0.x media Blob stores (`media`, `mediaFolders`, `mediaTranscodes`) are
     purged once at startup. PDF/image IndexedDB stores are preserved.
 - **PDF / Image:** still use IndexedDB `wasteland-browser`; do not remove those stores
