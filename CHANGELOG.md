@@ -2,6 +2,13 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.4] — 2026-11-08
+
+### Added
+
+- Background update check against GitHub Releases: runs after startup, caches for 6 hours, and can be forced from the ↻ button next to the version badge.
+- Update badge and release dialog with current/latest versions, platform-specific download asset, release notes and a link to the GitHub release.
+
 ## [1.1.3] — 2026-11-08
 
 ### Fixed

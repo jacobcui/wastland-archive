@@ -10,6 +10,13 @@ import { plugins, pluginById } from "@/plugins/registry";
 import { enabledCount, isEnabled, togglePlugin } from "@/stores/plugins";
 import { platformLabel } from "@/lib/platform";
 import { uiState, notify } from "@/stores/ui";
+import {
+  updateState,
+  maybeCheckForUpdates,
+  checkForUpdates,
+  openUpdateDialog,
+  closeUpdateDialog,
+} from "@/stores/update";
 
 function parseHash() {
   const raw = window.location.hash || "";
@@ -73,6 +80,7 @@ onMounted(() => {
   window.addEventListener("hashchange", onHashChange);
   onHashChange();
   loadBackgrounds();
+  maybeCheckForUpdates();
 });
 
 onBeforeUnmount(() => {
@@ -97,6 +105,15 @@ onBeforeUnmount(() => {
               </div>
             </button>
             <a class="brand__version" :href="changelogUrl" target="_blank" rel="noreferrer" :title="t('app.changelog')">v{{ appVersion }}</a>
+            <button
+              class="brand__check"
+              :disabled="updateState.checking"
+              :title="t('app.checkUpdate')"
+              @click="checkForUpdates({ manual: true, force: true })"
+            >{{ updateState.checking ? "…" : "↻" }}</button>
+            <button v-if="updateState.available" class="brand__update" @click="openUpdateDialog()">
+              {{ t("app.updateAvailable") }} {{ updateState.latest }}
+            </button>
           </div>
 
           <div class="topbar__spacer" />
@@ -182,6 +199,41 @@ onBeforeUnmount(() => {
       <component :is="activeComponent" v-else :key="activePlugin.id" />
 
       <LoginDialog />
+
+      <v-dialog v-model="updateState.dialog" max-width="620" :transition="false">
+        <div class="panel update-panel">
+          <div class="update-panel__head">
+            <div>
+              <div class="eyebrow">UPDATE · VERSION CHECK</div>
+              <h2>{{ t("app.updateTitle") }}</h2>
+            </div>
+            <button class="update-panel__close" :title="t('app.updateClose')" @click="closeUpdateDialog()">×</button>
+          </div>
+
+          <div class="update-panel__versions">
+            <div><span>{{ t("app.updateCurrent") }}</span><b>v{{ updateState.current }}</b></div>
+            <div><span>{{ t("app.updateLatestLabel") }}</span><b class="is-new">v{{ updateState.latest }}</b></div>
+          </div>
+
+          <p v-if="updateState.publishedAt" class="update-panel__date">
+            {{ t("app.updatePublished") }} · {{ String(updateState.publishedAt).slice(0, 10) }}
+          </p>
+
+          <div class="update-panel__actions">
+            <a v-if="updateState.asset" class="btn-hazard" :href="updateState.asset.url" target="_blank" rel="noreferrer">
+              {{ t("app.updateDownload") }} · {{ updateState.asset.name }}
+            </a>
+            <span v-else class="update-panel__hint">{{ t("app.updateNoAsset") }}</span>
+            <a class="btn-ghost" :href="updateState.releaseUrl" target="_blank" rel="noreferrer">{{ t("app.updateRelease") }}</a>
+            <button class="btn-ghost" @click="closeUpdateDialog()">{{ t("app.updateClose") }}</button>
+          </div>
+
+          <details v-if="updateState.body" class="update-panel__notes">
+            <summary>{{ t("app.updateNotes") }}</summary>
+            <pre>{{ updateState.body }}</pre>
+          </details>
+        </div>
+      </v-dialog>
 
       <v-snackbar
         class="toast-bar"

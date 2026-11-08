@@ -898,6 +898,98 @@ async function buildLibrary(yearParam) {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* update check                                                        */
+/* ------------------------------------------------------------------ */
+const APP_VERSION = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version || "0.0.0"; } catch { return "0.0.0"; }
+})();
+let updateCache = { at: 0, release: null };
+const UPDATE_TTL = 6 * 60 * 60 * 1000;
+
+function versionParts(value) {
+  return String(value || "").replace(/^v/i, "").split(/[.+-]/).slice(0, 3).map((part) => Number.parseInt(part, 10) || 0);
+}
+
+function isNewerVersion(latest, current) {
+  const a = versionParts(latest);
+  const b = versionParts(current);
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+function pickUpdateAsset(assets, platform, arch) {
+  const rows = Array.isArray(assets) ? assets : [];
+  const byName = (pattern) => rows.find((asset) => pattern.test(asset.name || ""));
+  if (platform === "windows" || platform === "win32") return byName(/win.*x64.*\.zip$/i) || byName(/win.*\.zip$/i);
+  if (platform === "mac" || platform === "darwin" || platform === "macos") {
+    if (arch === "x64") return byName(/mac-x64.*\.dmg$/i) || byName(/\.dmg$/i);
+    if (arch === "arm64") return byName(/mac-arm64.*\.dmg$/i) || byName(/\.dmg$/i);
+    return byName(/mac-arm64.*\.dmg$/i) || byName(/\.dmg$/i);
+  }
+  return byName(/\.tar\.gz$/i);
+}
+
+function updatePayload(release, platform, arch) {
+  const latest = String((release && release.tag_name) || "").replace(/^v/i, "");
+  const assets = (release && Array.isArray(release.assets) ? release.assets : []).map((asset) => ({
+    name: asset.name,
+    size: asset.size,
+    url: asset.browser_download_url,
+  }));
+  const asset = pickUpdateAsset(assets, platform, arch);
+  return {
+    ok: true,
+    current: APP_VERSION,
+    latest,
+    updateAvailable: Boolean(latest && isNewerVersion(latest, APP_VERSION)),
+    releaseName: (release && release.name) || "",
+    releaseUrl: (release && release.html_url) || "https://github.com/jacobcui/wastland-archive/releases",
+    publishedAt: (release && release.published_at) || null,
+    body: (release && release.body ? String(release.body).slice(0, 20000) : ""),
+    asset: asset || null,
+    checkedAt: Date.now(),
+  };
+}
+
+app.get("/api/update", async (req, res) => {
+  const platform = String(req.query.platform || "").toLowerCase();
+  const arch = String(req.query.arch || "").toLowerCase();
+  const force = req.query.force === "1";
+  if (!force && updateCache.release && Date.now() - updateCache.at < UPDATE_TTL) {
+    return res.json({ ...updatePayload(updateCache.release, platform, arch), cached: true });
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      response = await fetch("https://api.github.com/repos/jacobcui/wastland-archive/releases/latest", {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "wasteland-archive-update-check",
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!response.ok) throw new Error("GitHub 返回 " + response.status);
+    const release = await response.json();
+    updateCache = { at: Date.now(), release };
+    res.json(updatePayload(release, platform, arch));
+  } catch (error) {
+    res.json({
+      ok: false,
+      current: APP_VERSION,
+      error: error.name === "AbortError" ? "检查更新超时" : error.message,
+    });
+  }
+});
+
 app.get("/api/library", async (req, res) => {
   try {
     res.json(await buildLibrary(req.query.year));

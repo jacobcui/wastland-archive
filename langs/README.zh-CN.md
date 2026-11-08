@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../src/assets/logo-wordmark.png" alt="废土馆藏 Logo" width="440" /></p>
 
-**版本 1.1.3** · [更新日志](../CHANGELOG.md)
+**版本 1.1.4** · [更新日志](../CHANGELOG.md)
 
 **废土馆藏** 是一个离线优先的本地阅读终端，用来管理杂志档案、PDF、图片文件夹与本地媒体。主程序只负责开门，所有馆藏都是插件，数据归插件自己管理。
 
@@ -10,11 +10,14 @@
 
 ![废土馆藏首页](../docs/home-zh.png)
 
+![版本更新对话框](../docs/update-dialog.png)
+
 ## 主要特性
 
 - **离线优先**：归档、PDF、图片目录、媒体都保存在本机，不上传第三方云。
 - **插件库**：MKX 杂志档案、PDF 阅读、图片浏览、Media 四个独立插件。停用插件不会删除数据。
 - **原生桌面 App**：macOS（Apple Silicon + Intel）与 Windows x64 均为双击即用，内置 Node、Chromium、ffmpeg 与 Playwright，不再需要终端或单独 server。
+- **版本更新检查**：启动后后台检查 GitHub Releases（缓存 6 小时）；发现新版本会显示更新徽标，点击可下载；版本号旁的 ↻ 可立即检查。
 - **可恢复转码**：原生不支持的视频由本机 ffmpeg 边转 HLS 边播放；切走保留后台会话与播放位置，切回继续。
 - **废土背景**：内置 4 张原创废土风背景，也支持上传自定义图片到 ~/.wasteland_browser/bg_screens。
 - **中英双语**：右上角切换 English / 中文；语言包在 src/i18n/locales。
@@ -65,7 +68,7 @@
 
 示例：[sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4)（来自 samplelib.com）。
 
-> **1.1.3 升级说明。** 媒体库索引已从浏览器 IndexedDB 移到服务端。旧浏览器条目无法自动迁移，因为浏览器不会暴露绝对路径。请点击一次 **添加目录路径**，粘贴媒体根目录（例如 `/Volumes/MYBAK2/Movies`）；服务端扫描后，所有浏览器共用同一份媒体库。
+> **1.1.4 升级说明。** 媒体库索引已从浏览器 IndexedDB 移到服务端。旧浏览器条目无法自动迁移，因为浏览器不会暴露绝对路径。请点击一次 **添加目录路径**，粘贴媒体根目录（例如 `/Volumes/MYBAK2/Movies`）；服务端扫描后，所有浏览器共用同一份媒体库。
 
 ![Media 播放历史](../docs/media-history.png)
 
@@ -139,7 +142,7 @@ make up 会运行 scripts/bootstrap.sh：
 | make bootstrap | 只检测/安装环境 |
 | make status | 查看进程 + 登录状态 |
 | make down | 停止服务 |
-| make package | 生成 Web 便携包 release/wasteland-archive-1.1.3.tar.gz |
+| make package | 生成 Web 便携包 release/wasteland-archive-1.1.4.tar.gz |
 | make app | 生成 macOS 原生 App（arm64 + Intel x64）+ zip + dmg |
 | make app-win | 生成 Windows x64 便携包 Wasteland-Archive-win-x64.zip |
 
@@ -152,10 +155,10 @@ make app
 输出（Apple Silicon + Intel）：
 
 ~~~text
-release/native/Wasteland-Archive-mac-arm64-1.1.3.dmg
-release/native/Wasteland-Archive-mac-arm64-1.1.3.zip
-release/native/Wasteland-Archive-mac-x64-1.1.3.dmg
-release/native/Wasteland-Archive-mac-x64-1.1.3.zip
+release/native/Wasteland-Archive-mac-arm64-1.1.4.dmg
+release/native/Wasteland-Archive-mac-arm64-1.1.4.zip
+release/native/Wasteland-Archive-mac-x64-1.1.4.dmg
+release/native/Wasteland-Archive-mac-x64-1.1.4.zip
 ~~~
 
 两个 DMG 都包含 App 和 **Applications 快捷方式**。打开 DMG，把 **废土馆藏.app** 拖到 Applications 上。App 内置 Node、Chromium、ffmpeg-static 和 Playwright headless Chromium，使用固定的内部端口 **5278**，退出时自动停止服务。
@@ -176,7 +179,7 @@ make app-win
 输出：
 
 ~~~text
-release/native/Wasteland-Archive-win-x64-1.1.3.zip
+release/native/Wasteland-Archive-win-x64-1.1.4.zip
 ~~~
 
 在 Windows 10/11 x64 上解压，运行 **废土馆藏.exe** 即可。这是便携版，不需要安装 Node，也不需要单独启动 server；包内包含 Windows Electron、ffmpeg 和 Playwright headless Chromium。
@@ -208,7 +211,7 @@ src/i18n/locales/zh.js
 | 自定义背景 | ~/.wasteland_browser/bg_screens | 同一路径，互通 |
 | HLS 临时文件 | `~/.wasteland_archive/transcodes`（1 小时 TTL） | Application Support `transcodes` |
 
-**从 1.0.x 升级：**旧版本把每个导入的媒体文件作为 Blob 复制进 IndexedDB，所以 App profile 可能膨胀到数百 GB。1.1.3 启动时会清除一次旧的 `media`、`mediaFolders`、`mediaTranscodes` 存储；PDF / 图片库不受影响。新的服务端媒体索引只保存路径。
+**从 1.0.x 升级：**旧版本把每个导入的媒体文件作为 Blob 复制进 IndexedDB，所以 App profile 可能膨胀到数百 GB。1.1.4 启动时会清除一次旧的 `media`、`mediaFolders`、`mediaTranscodes` 存储；PDF / 图片库不受影响。新的服务端媒体索引只保存路径。
 
 Windows 原生版的归档目录：
 
