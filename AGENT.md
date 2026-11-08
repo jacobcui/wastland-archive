@@ -7,7 +7,7 @@ This file defines how an AI agent should handle update, fix and feature requests
 
 **Wasteland Archive / 废土馆藏** is a local-first desktop/browser archive of Chinese
 magazines, PDFs, image folders and local media. Repository:
-`jacobcui/wastland-archive`. Current version at the time of writing: **1.2.0**.
+`jacobcui/wastland-archive`. Current version at the time of writing: **1.3.0**.
 
 ### Architecture
 
@@ -129,8 +129,15 @@ stay outside it.
 ### Update check
 
 - `GET /api/update?platform=...&arch=...&force=1` reads the latest GitHub Release.
+  If the query omits platform/arch, the server uses its own `process.platform` /
+  `process.arch`. Native builds send exact Electron values through the preload bridge.
 - UI checks after startup, caches 6 hours, shows a topbar badge and dialog; ↻ forces a
   check.
+- The update dialog shows the detected system and the matching asset. Native builds
+  download to Downloads and open the DMG/ZIP through `wasteland:download-update`;
+  browser mode opens the asset URL. Only allow GitHub download hosts.
+- Do not silently replace the installed app binary; opening the official installer is
+  the supported update path.
 - Release bodies are shown as plain text in a scrollable details block.
 - Do not use `v-html` for release notes.
 

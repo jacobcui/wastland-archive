@@ -75,6 +75,124 @@ ipcMain.handle("wasteland:reveal-path", async (_event, target) => {
   }
 });
 
+ipcMain.handle("wasteland:system-info", () => ({
+  platform: process.platform,
+  arch: process.arch,
+  version: app.getVersion(),
+  packaged: isPackaged,
+}));
+
+const MAX_UPDATE_BYTES = 1024 * 1024 * 1024;
+let updateDownloading = false;
+
+function isAllowedUpdateUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    return host === "github.com" || host === "objects.githubusercontent.com" || /\.githubusercontent\.com$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
+function safeUpdateFileName(name) {
+  const base = path.basename(String(name || "wasteland-update"));
+  const cleaned = base.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim().slice(0, 180);
+  return cleaned || "wasteland-update";
+}
+
+function uniqueDownloadPath(dir, name) {
+  const ext = name.toLowerCase().endsWith(".tar.gz") ? ".tar.gz" : path.extname(name);
+  const stem = name.slice(0, name.length - ext.length);
+  let target = path.join(dir, name);
+  let index = 1;
+  while (fs.existsSync(target)) {
+    target = path.join(dir, stem + "-" + index + ext);
+    index += 1;
+  }
+  return target;
+}
+
+function sendUpdateProgress(event, received, total) {
+  try {
+    if (event && event.sender && !event.sender.isDestroyed()) {
+      event.sender.send("wasteland:update-progress", {
+        received,
+        total,
+        percent: total > 0 ? Math.min(100, Math.round((received / total) * 100)) : null,
+      });
+    }
+  } catch {}
+}
+
+async function downloadUpdateFile(event, payload) {
+  if (updateDownloading) return { ok: false, error: "已有更新正在下载" };
+  const url = String((payload && payload.url) || "");
+  if (!isAllowedUpdateUrl(url)) return { ok: false, error: "更新下载地址不受信任" };
+  const name = safeUpdateFileName(payload && payload.name);
+  const dir = app.getPath("downloads");
+  fs.mkdirSync(dir, { recursive: true });
+  const target = uniqueDownloadPath(dir, name);
+  const temp = target + ".part";
+  updateDownloading = true;
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      headers: { "User-Agent": "wasteland-archive-updater" },
+    });
+    if (!response.ok || !response.body) throw new Error("下载失败 (" + response.status + ")");
+    const total = Number(response.headers.get("content-length")) || 0;
+    if (total > MAX_UPDATE_BYTES) throw new Error("更新包过大");
+    const file = fs.createWriteStream(temp);
+    const reader = response.body.getReader();
+    let received = 0;
+    let lastSent = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+        if (received > MAX_UPDATE_BYTES) throw new Error("更新包过大");
+        if (!file.write(Buffer.from(value))) {
+          await new Promise((resolve, reject) => {
+            file.once("drain", resolve);
+            file.once("error", reject);
+          });
+        }
+        const now = Date.now();
+        if (now - lastSent > 250) {
+          lastSent = now;
+          sendUpdateProgress(event, received, total);
+        }
+      }
+      await new Promise((resolve, reject) => {
+        file.end(resolve);
+        file.once("error", reject);
+      });
+    } catch (error) {
+      try { file.destroy(); } catch {}
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
+    fs.renameSync(temp, target);
+    sendUpdateProgress(event, received, total || received);
+    const shouldOpen = /\.(dmg|zip|tar\.gz)$/i.test(name);
+    const openError = shouldOpen ? await shell.openPath(target) : "";
+    return { ok: true, path: target, opened: shouldOpen ? !openError : false, openError: openError || "" };
+  } finally {
+    updateDownloading = false;
+  }
+}
+
+ipcMain.handle("wasteland:download-update", async (event, payload) => {
+  try {
+    return await downloadUpdateFile(event, payload);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
 let server = null;
 let win = null;
 let baseUrl = "";

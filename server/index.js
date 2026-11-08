@@ -1236,16 +1236,45 @@ function isNewerVersion(latest, current) {
   return false;
 }
 
+function normalizeUpdatePlatform(value) {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "win32" || raw === "windows" || raw === "win") return "windows";
+  if (raw === "darwin" || raw === "mac" || raw === "macos") return "mac";
+  if (raw === "linux") return "linux";
+  return "";
+}
+
+function normalizeUpdateArch(value) {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "arm64" || raw === "aarch64" || raw === "arm") return "arm64";
+  if (raw === "x64" || raw === "x86_64" || raw === "amd64" || raw === "x86") return "x64";
+  return "";
+}
+
+function updateSystemLabel(platform, arch) {
+  if (platform === "mac") return arch === "x64" ? "macOS · Intel" : "macOS · Apple Silicon";
+  if (platform === "windows") return "Windows · x64";
+  if (platform === "linux") return "Linux / Web";
+  return "Web package";
+}
+
 function pickUpdateAsset(assets, platform, arch) {
   const rows = Array.isArray(assets) ? assets : [];
   const byName = (pattern) => rows.find((asset) => pattern.test(asset.name || ""));
-  if (platform === "windows" || platform === "win32") return byName(/win.*x64.*\.zip$/i) || byName(/win.*\.zip$/i);
-  if (platform === "mac" || platform === "darwin" || platform === "macos") {
+  if (platform === "windows") return byName(/win.*x64.*\.zip$/i) || byName(/win.*\.zip$/i);
+  if (platform === "mac") {
     if (arch === "x64") return byName(/mac-x64.*\.dmg$/i) || byName(/\.dmg$/i);
-    if (arch === "arm64") return byName(/mac-arm64.*\.dmg$/i) || byName(/\.dmg$/i);
     return byName(/mac-arm64.*\.dmg$/i) || byName(/\.dmg$/i);
   }
   return byName(/\.tar\.gz$/i);
+}
+
+function updateAssetKind(name) {
+  const value = String(name || "").toLowerCase();
+  if (value.endsWith(".dmg")) return "dmg";
+  if (value.endsWith(".zip")) return "zip";
+  if (value.endsWith(".tar.gz")) return "tar.gz";
+  return "file";
 }
 
 function updatePayload(release, platform, arch) {
@@ -1255,7 +1284,8 @@ function updatePayload(release, platform, arch) {
     size: asset.size,
     url: asset.browser_download_url,
   }));
-  const asset = pickUpdateAsset(assets, platform, arch);
+  const asset = pickUpdateAsset(assets, platform, arch) || null;
+  const systemArch = platform === "windows" ? "x64" : platform === "web" ? "" : arch;
   return {
     ok: true,
     current: APP_VERSION,
@@ -1265,14 +1295,26 @@ function updatePayload(release, platform, arch) {
     releaseUrl: (release && release.html_url) || "https://github.com/jacobcui/wastland-archive/releases",
     publishedAt: (release && release.published_at) || null,
     body: (release && release.body ? String(release.body).slice(0, 20000) : ""),
-    asset: asset || null,
+    system: {
+      platform,
+      arch: systemArch,
+      label: updateSystemLabel(platform, systemArch),
+      assetKind: asset ? updateAssetKind(asset.name) : "",
+    },
+    asset,
     checkedAt: Date.now(),
   };
 }
 
 app.get("/api/update", async (req, res) => {
-  const platform = String(req.query.platform || "").toLowerCase();
-  const arch = String(req.query.arch || "").toLowerCase();
+  /* The server runs on the same machine as the native app. Prefer Electron /
+     browser hints, but fall back to this process's own platform and arch so a
+     missing or incomplete User-Agent cannot produce the wrong installer. */
+  const requested = String(req.query.platform || "").toLowerCase();
+  const platform = requested === "web"
+    ? "web"
+    : (normalizeUpdatePlatform(requested) || normalizeUpdatePlatform(process.platform) || "web");
+  const arch = normalizeUpdateArch(req.query.arch) || normalizeUpdateArch(process.arch) || "";
   const force = req.query.force === "1";
   if (!force && updateCache.release && Date.now() - updateCache.at < UPDATE_TTL) {
     return res.json({ ...updatePayload(updateCache.release, platform, arch), cached: true });

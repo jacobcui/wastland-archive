@@ -243,8 +243,45 @@ body {
 .update-panel__versions b { font-family: var(--display); font-size: 22px; color: var(--bone); }
 .update-panel__versions b.is-new { color: var(--amber); }
 .update-panel__date { margin: 12px 0 0; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.update-panel__system {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  background: rgba(110, 168, 254, 0.04);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.update-panel__system b { color: var(--bone); font-weight: 600; }
+.update-panel__system-kind { border: 1px solid var(--line-soft); padding: 1px 4px; color: #6ea8fe; }
+.update-panel__system-file {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.update-panel__progress {
+  height: 3px;
+  margin-top: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+.update-panel__progress i { display: block; height: 100%; background: var(--amber); transition: width 0.2s linear; }
+.update-panel__progress.is-indeterminate i { animation: update-progress 1.15s ease-in-out infinite; }
+@keyframes update-progress {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}
+.update-panel__error { margin: 10px 0 0; font-size: 10px; line-height: 1.6; color: var(--danger); }
 .update-panel__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.update-panel__actions .update-panel__primary { flex: 0 0 auto; text-transform: none; letter-spacing: 0.06em; }
 .update-panel__hint { font-size: 10px; line-height: 1.6; color: var(--muted); }
+.update-panel__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .update-panel__notes { margin-top: 18px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
 .update-panel__notes summary { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--muted); cursor: pointer; }
 .update-panel__notes pre { max-height: 260px; overflow: auto; margin: 10px 0 0; padding: 10px; border: 1px solid var(--line-soft); background: #070605; color: var(--bone-dim); font-family: var(--mono); font-size: 10px; line-height: 1.7; white-space: pre-wrap; }

@@ -17,9 +17,14 @@ export const updateState = reactive({
   publishedAt: null,
   body: "",
   asset: null,
+  system: null,
   error: null,
   dialog: false,
   lastChecked: 0,
+  downloading: false,
+  downloadProgress: null,
+  downloadError: null,
+  downloadPath: "",
 });
 
 function readCache() {
@@ -39,6 +44,7 @@ function applyPayload(data, persist = true) {
   updateState.publishedAt = data.publishedAt || null;
   updateState.body = data.body || "";
   updateState.asset = data.asset || null;
+  updateState.system = data.system || null;
   updateState.error = null;
   updateState.lastChecked = data.checkedAt || Date.now();
   if (persist) {
@@ -50,6 +56,18 @@ function applyPayload(data, persist = true) {
 }
 
 async function platformQuery() {
+  /* Native app: ask Electron directly. This is the most reliable source and
+     avoids guessing the macOS architecture from the browser User-Agent. */
+  const desktop = typeof window !== "undefined" ? window.wastelandDesktop : null;
+  if (desktop && typeof desktop.getSystemInfo === "function") {
+    try {
+      const info = await desktop.getSystemInfo();
+      if (info && info.platform) {
+        const platform = info.platform === "win32" ? "windows" : info.platform === "darwin" ? "mac" : info.platform;
+        return "platform=" + encodeURIComponent(platform) + (info.arch ? "&arch=" + encodeURIComponent(info.arch) : "");
+      }
+    } catch {}
+  }
   const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
   if (/Windows/i.test(ua)) return "platform=windows";
   if (/Macintosh|Mac OS X/i.test(ua)) {
@@ -65,7 +83,8 @@ async function platformQuery() {
     return "platform=mac" + (arch ? "&arch=" + arch : "");
   }
   if (/Linux/i.test(ua)) return "platform=linux";
-  return "platform=web";
+  /* Local server: it knows process.platform/process.arch and will fill these in. */
+  return "";
 }
 
 export async function checkForUpdates({ manual = false, force = false } = {}) {
@@ -112,4 +131,56 @@ export function openUpdateDialog() {
 
 export function closeUpdateDialog() {
   updateState.dialog = false;
+}
+
+export async function downloadUpdate() {
+  const asset = updateState.asset;
+  if (!asset || !asset.url) {
+    if (updateState.releaseUrl && typeof window !== "undefined") {
+      window.open(updateState.releaseUrl, "_blank", "noopener");
+    }
+    return false;
+  }
+  if (updateState.downloading) return false;
+
+  const desktop = typeof window !== "undefined" ? window.wastelandDesktop : null;
+  if (desktop && typeof desktop.downloadUpdate === "function") {
+    updateState.downloading = true;
+    updateState.downloadProgress = null;
+    updateState.downloadError = null;
+    updateState.downloadPath = "";
+    let unsubscribe = null;
+    try {
+      if (typeof desktop.onUpdateProgress === "function") {
+        unsubscribe = desktop.onUpdateProgress((payload) => {
+          const percent = payload && Number(payload.percent);
+          updateState.downloadProgress = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : null;
+        });
+      }
+      const result = await desktop.downloadUpdate({ url: asset.url, name: asset.name });
+      if (!result || !result.ok) throw new Error(result && result.error ? result.error : "下载失败");
+      updateState.downloadPath = result.path || "";
+      notify(
+        result.opened === false
+          ? t("app.updateInstallerDownloaded", { path: result.path || "" })
+          : t("app.updateInstallerOpened"),
+        result.opened === false ? "info" : "success"
+      );
+      return true;
+    } catch (error) {
+      updateState.downloadError = error.message;
+      notify(t("app.updateDownloadFailed", { error: error.message }), "error");
+      return false;
+    } finally {
+      updateState.downloading = false;
+      updateState.downloadProgress = null;
+      if (typeof unsubscribe === "function") unsubscribe();
+    }
+  }
+
+  /* Browser/web package: GitHub serves the asset as an attachment, so opening
+     in a new tab starts the correct download without leaving the app. */
+  window.open(asset.url, "_blank", "noopener");
+  notify(t("app.updateDownloadStarted"), "info");
+  return true;
 }

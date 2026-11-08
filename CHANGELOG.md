@@ -2,6 +2,14 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.3.0] — 2026-11-08
+
+### Added
+
+- Update dialog now detects the user's system automatically and selects the matching installer. Native builds ask Electron for the exact platform and architecture; browser/dev mode falls back to the local server's `process.platform` / `process.arch`.
+- The dialog shows the detected system (macOS · Apple Silicon, macOS · Intel, Windows · x64, Web) and the selected DMG/ZIP/tarball.
+- One-click update in the native app: downloads the correct asset to Downloads, shows progress, and opens the DMG/ZIP installer automatically. Browser mode starts the download in a new tab. Download failures stay visible in the dialog.
+
 ## [1.2.0] — 2026-11-08
 
 ### Added

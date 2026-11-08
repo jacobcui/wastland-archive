@@ -16,6 +16,7 @@ import {
   checkForUpdates,
   openUpdateDialog,
   closeUpdateDialog,
+  downloadUpdate,
 } from "@/stores/update";
 
 function parseHash() {
@@ -30,6 +31,17 @@ const componentCache = new Map();
 const { backgroundStyle, isNone, loadBackgrounds } = useBackgrounds();
 const appVersion = __APP_VERSION__;
 const changelogUrl = "https://github.com/jacobcui/wastland-archive/blob/main/CHANGELOG.md";
+
+const updateSystemLabel = computed(() => (updateState.system && updateState.system.label) || "");
+const updateDownloadLabel = computed(() => {
+  if (updateState.downloading) {
+    return updateState.downloadProgress == null
+      ? t("app.updateDownloadingUnknown")
+      : t("app.updateDownloading", { percent: updateState.downloadProgress });
+  }
+  if (updateSystemLabel.value) return t("app.updateDownloadFor", { system: updateSystemLabel.value });
+  return t("app.updateDownload");
+});
 
 function pluginName(plugin) {
   return plugin ? t(plugin.nameKey) : "";
@@ -219,14 +231,37 @@ onBeforeUnmount(() => {
             {{ t("app.updatePublished") }} · {{ String(updateState.publishedAt).slice(0, 10) }}
           </p>
 
+          <div v-if="updateSystemLabel" class="update-panel__system">
+            <span>{{ t("app.updateDetectedSystem") }}</span>
+            <b>{{ updateSystemLabel }}</b>
+            <span v-if="updateState.system.assetKind" class="update-panel__system-kind">{{ updateState.system.assetKind.toUpperCase() }}</span>
+            <span v-if="updateState.asset" class="update-panel__system-file" :title="updateState.asset.name">{{ updateState.asset.name }}</span>
+          </div>
+
+          <div v-if="updateState.downloading" class="update-panel__progress" :class="{ 'is-indeterminate': updateState.downloadProgress == null }">
+            <i :style="{ width: (updateState.downloadProgress == null ? 35 : updateState.downloadProgress) + '%' }" />
+          </div>
+
+          <p v-if="updateState.downloadError" class="update-panel__error">{{ updateState.downloadError }}</p>
+
           <div class="update-panel__actions">
-            <a v-if="updateState.asset" class="btn-hazard" :href="updateState.asset.url" target="_blank" rel="noreferrer">
-              {{ t("app.updateDownload") }} · {{ updateState.asset.name }}
+            <button
+              v-if="updateState.asset"
+              class="btn-hazard update-panel__primary"
+              :disabled="updateState.downloading"
+              @click="downloadUpdate()"
+            >
+              {{ updateDownloadLabel }}
+            </button>
+            <a v-else class="btn-hazard" :href="updateState.releaseUrl" target="_blank" rel="noreferrer">
+              {{ t("app.updateChoosePlatform") }}
             </a>
-            <span v-else class="update-panel__hint">{{ t("app.updateNoAsset") }}</span>
             <a class="btn-ghost" :href="updateState.releaseUrl" target="_blank" rel="noreferrer">{{ t("app.updateRelease") }}</a>
             <button class="btn-ghost" @click="closeUpdateDialog()">{{ t("app.updateClose") }}</button>
           </div>
+          <p v-if="updateState.asset" class="update-panel__hint">{{ t("app.updateAutoHint") }}</p>
+          <p v-else class="update-panel__hint">{{ t("app.updateNoAsset") }}</p>
+          <p v-if="updateState.downloadPath" class="update-panel__hint update-panel__path" :title="updateState.downloadPath">{{ t("app.updateDownloadedTo", { path: updateState.downloadPath }) }}</p>
 
           <details v-if="updateState.body" class="update-panel__notes">
             <summary>{{ t("app.updateNotes") }}</summary>
