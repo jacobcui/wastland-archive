@@ -75,8 +75,9 @@ const decodedCache = new Map();
 const fileCache = new Map();
 
 const POSITION_KEY = "wasteland.media.positions.v1";
-let resumePositions = {};
-try { resumePositions = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}") || {}; } catch {}
+let storedPositions = {};
+try { storedPositions = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}") || {}; } catch {}
+const resumePositions = reactive(storedPositions);
 
 function writeResumePositions() {
   try { localStorage.setItem(POSITION_KEY, JSON.stringify(resumePositions)); } catch {}
@@ -127,11 +128,10 @@ function showFsBottom() {
   fsBottomTimer = setTimeout(() => { fsBottomVisible.value = false; }, 2800);
 }
 
-function onVisualPointer(event) {
+function onVisualPointer() {
   if (!visualFullscreen.value) return;
-  const y = event.clientY;
-  if (y < 150) showFsTop();
-  if (y > window.innerHeight - 170) showFsBottom();
+  showFsTop();
+  showFsBottom();
 }
 const PLAY_MODES = [
   { value: "continue", label: "顺序" },
@@ -170,6 +170,35 @@ let persistTimer = null;
 const probe = document.createElement("video");
 
 const totalBytes = computed(() => media.value.reduce((sum, row) => sum + (row.size || 0), 0));
+
+const history = computed(() =>
+  media.value
+    .filter((row) => (row.lastPlayedAt || 0) > 0 || resumePositions[row.id])
+    .sort((a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0))
+    .slice(0, 8)
+);
+
+function historyPosition(row) {
+  return resumePosition(row);
+}
+
+function historyPercent(row) {
+  const duration = Number(row.duration) || Number(resumePositions[row.id] && resumePositions[row.id].duration) || 0;
+  if (!duration) return 0;
+  return Math.min(100, Math.max(0, Math.round((historyPosition(row) / duration) * 100)));
+}
+
+function historyMeta(row) {
+  const position = historyPosition(row);
+  const duration = Number(row.duration) || Number(resumePositions[row.id] && resumePositions[row.id].duration) || 0;
+  if (position > 0 && duration > 0) return (player.playing && active.value && active.value.id === row.id ? "播放中 · " : "继续 · ") + formatTime(position) + " / " + formatTime(duration);
+  if (duration > 0) return "从头播放 · " + formatTime(duration);
+  return "最近播放";
+}
+
+function playHistory(row) {
+  openMedia(row, { autoplay: true });
+}
 
 function mediaPath(row) {
   return String(row.relativePath || row.name || "");
@@ -2122,6 +2151,27 @@ onBeforeUnmount(() => {
             </select>
           </div>
 
+          <div v-if="history.length" class="media-history">
+            <div class="media-history__head">
+              <span class="eyebrow">HISTORY · 播放历史</span>
+              <span class="eyebrow">{{ history.length }}</span>
+            </div>
+            <button
+              v-for="row in history"
+              :key="'history-' + row.id"
+              class="media-history__row"
+              :class="{ 'is-active': active && active.id === row.id }"
+              @click="playHistory(row)"
+            >
+              <span class="media-history__kind" :class="'is-' + row.kind">{{ row.kind === "video" ? "VID" : "AUD" }}</span>
+              <span class="media-history__body">
+                <span class="media-history__name" :title="row.relativePath || row.name">{{ row.name }}</span>
+                <span class="media-history__meta">{{ historyMeta(row) }}</span>
+                <span class="media-history__bar"><i :style="{ width: historyPercent(row) + '%' }" /></span>
+              </span>
+            </button>
+          </div>
+
           <div class="hazard" style="opacity: 0.45; margin: 12px 0"></div>
 
           <div v-if="folderImporting" class="media-folder-status">
@@ -2570,6 +2620,49 @@ onBeforeUnmount(() => {
   outline: none;
 }
 .media-mode:focus { border-color: #6ea8fe; }
+.media-history {
+  margin-top: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(110, 168, 254, 0.035);
+}
+.media-history__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.media-history__row {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  background: transparent;
+  color: var(--bone-dim);
+  text-align: left;
+  cursor: pointer;
+}
+.media-history__row:last-child { border-bottom: 0; }
+.media-history__row:hover, .media-history__row.is-active { background: rgba(110, 168, 254, 0.07); }
+.media-history__kind {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  padding: 2px 3px;
+  border: 1px solid var(--line-soft);
+  color: #6ea8fe;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+.media-history__kind.is-audio { color: var(--amber); border-color: rgba(255, 176, 0, 0.35); }
+.media-history__body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.media-history__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--bone-dim); }
+.media-history__meta { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.media-history__bar { height: 2px; margin-top: 3px; background: rgba(110, 168, 254, 0.12); }
+.media-history__bar i { display: block; height: 100%; background: #6ea8fe; }
 .media-folder-status {
   margin-bottom: 10px;
   padding: 6px 8px;

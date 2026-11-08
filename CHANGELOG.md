@@ -2,6 +2,16 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.0.5] — 2026-11-08
+
+### Added
+
+- Media play history panel with per-item progress; selecting a history entry continues from the saved position, or starts from the beginning if it already finished.
+
+### Changed
+
+- Fullscreen audio chrome now appears on any mouse movement instead of only near the top or bottom edges, and still fades out automatically after a few seconds.
+
 ## [1.0.4] — 2026-11-08
 
 ### Fixed
