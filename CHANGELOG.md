@@ -2,6 +2,21 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.0] — 2026-11-08
+
+### Added
+
+- Server-backed media library. Add an absolute directory path once; the server scans it and stores the index, positions, history and subtitle text in `~/.wasteland_archive` for the dev server and Application Support for the native app. Switching browsers keeps the same library.
+- Server-side media streaming with byte ranges and server-side subtitle sidecars.
+- Server-side transcoding directly from the original path, so unsupported formats no longer upload the whole file first.
+- Full absolute paths in FILE INFO for server-library items.
+
+### Changed
+
+- Media metadata is no longer stored in browser IndexedDB. IndexedDB remains only for the separate PDF/image plugins.
+- HLS transcode cache moved out of `data/` into the media home directory.
+- Media import now starts from “添加目录路径” instead of a browser folder picker, because browsers cannot reveal an absolute path.
+
 ## [1.0.8] — 2026-11-08
 
 ### Added

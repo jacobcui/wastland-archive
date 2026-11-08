@@ -5,17 +5,27 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { PORT, ROOT, ISSUES_DIR, DATA_DIR, UPSTREAM } from "./lib/config.js";
+import { PORT, ROOT, ISSUES_DIR, DATA_DIR, MEDIA_CACHE_DIR, UPSTREAM } from "./lib/config.js";
 import { readAuthRecord, session, normalizeCredentials } from "./lib/auth.js";
 import { getMagazines, normalizeIssue } from "./lib/api.js";
 import { ensureDirs, isComplete, listLocalIssues, localIssue, readProgress, writeProgress } from "./lib/store.js";
 import { bus, cancelJob, deleteLocal, extFromContentType, fetchBinary, findActiveJob, listJobs, startDownload } from "./lib/downloads.js";
 import { syncWithBrowser } from "./lib/browser-sync.js";
+import {
+  addFolder as addMediaFolder,
+  fileInfo as mediaFileInfo,
+  removeFolder as removeMediaFolder,
+  removeItem as removeMediaItem,
+  rescanFolder as rescanMediaFolder,
+  snapshot as mediaLibrarySnapshot,
+  subtitleInfo as mediaSubtitleInfo,
+  updateItem as updateMediaItem,
+} from "./lib/media-library.js";
 
 ensureDirs();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "4mb" }));
 app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   next();
@@ -169,7 +179,7 @@ app.delete("/api/backgrounds/:file", (req, res) => {
 /* ------------------------------------------------------------------ */
 /* local ffmpeg -> HLS streaming for media that browsers cannot decode */
 /* ------------------------------------------------------------------ */
-const TRANSCODE_ROOT = path.join(DATA_DIR, "transcodes");
+const TRANSCODE_ROOT = MEDIA_CACHE_DIR;
 fs.mkdirSync(TRANSCODE_ROOT, { recursive: true });
 const TRANSCODE_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const require = createRequire(import.meta.url);
@@ -428,6 +438,142 @@ app.use(
     },
   })
 );
+
+/* ------------------------------------------------------------------ */
+/* server-backed media library: paths + playback state live outside    */
+/* DATA_DIR, so changing browsers does not lose the library.          */
+/* ------------------------------------------------------------------ */
+app.get("/api/media-library", (_req, res) => {
+  res.json({ ok: true, ...mediaLibrarySnapshot() });
+});
+
+app.post("/api/media-library/folders", async (req, res) => {
+  try {
+    const result = await addMediaFolder(req.body && req.body.path);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/api/media-library/folders/:id/rescan", async (req, res) => {
+  try {
+    const result = await rescanMediaFolder(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete("/api/media-library/folders/:id", async (req, res) => {
+  try {
+    const result = await removeMediaFolder(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete("/api/media-library/items/:id", async (req, res) => {
+  try {
+    const result = await removeMediaItem(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+app.patch("/api/media-library/items/:id", async (req, res) => {
+  try {
+    const item = await updateMediaItem(req.params.id, req.body || {});
+    res.json({ ok: true, item });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+app.get("/api/media-library/file/:id", (req, res) => {
+  const info = mediaFileInfo(req.params.id);
+  if (!info) return res.status(404).json({ ok: false, error: "媒体文件不存在" });
+  res.setHeader("Content-Type", info.mime);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Disposition", "inline");
+  res.sendFile(info.absolutePath, (error) => {
+    if (error && !res.headersSent) res.status(404).json({ ok: false, error: "无法读取媒体文件" });
+  });
+});
+
+app.get("/api/media-library/subtitle/:id", (req, res) => {
+  const info = mediaSubtitleInfo(req.params.id);
+  if (!info) return res.status(404).json({ ok: false, error: "没有字幕" });
+  res.type("text/plain; charset=utf-8");
+  res.send(info.text);
+});
+
+app.post("/api/media-library/items/:id/transcode", (req, res) => {
+  const info = mediaFileInfo(req.params.id);
+  if (!info) return res.status(404).json({ ok: false, error: "媒体文件不存在" });
+  const id = crypto.randomBytes(12).toString("hex");
+  const dir = path.join(TRANSCODE_ROOT, id);
+  const playlistPath = path.join(dir, "index.m3u8");
+  fs.mkdirSync(dir, { recursive: true });
+  const args = [
+    "-hide_banner",
+    "-loglevel", "warning",
+    "-y",
+    "-i", info.absolutePath,
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-pix_fmt", "yuv420p",
+    "-c:a", "aac",
+    "-b:a", "128k",
+    "-force_key_frames", "expr:gte(t,n_forced*2)",
+    "-hls_time", "2",
+    "-hls_list_size", "0",
+    "-hls_playlist_type", "event",
+    "-hls_segment_filename", path.join(dir, "seg%05d.ts"),
+    playlistPath,
+  ];
+  const logPath = path.join(dir, "ffmpeg.log");
+  const log = fs.createWriteStream(logPath);
+  const session = {
+    id,
+    dir,
+    inputPath: info.absolutePath,
+    playlistPath,
+    status: "running",
+    error: null,
+    proc: null,
+    startedAt: Date.now(),
+  };
+  transcodeSessions.set(id, session);
+  try {
+    session.proc = spawn(FFMPEG_BIN, args, { cwd: dir, stdio: ["ignore", "ignore", "pipe"] });
+  } catch (error) {
+    session.status = "error";
+    session.error = error.message;
+    return res.status(500).json({ ok: false, error: "无法启动 ffmpeg: " + error.message });
+  }
+  if (session.proc.stderr) session.proc.stderr.pipe(log);
+  session.proc.on("error", (error) => {
+    session.status = "error";
+    session.error = error.code === "ENOENT" ? "本机没有找到 ffmpeg，请安装 ffmpeg 后重试" : error.message;
+  });
+  session.proc.on("close", (code) => {
+    if (code === 0) {
+      session.status = "done";
+      return;
+    }
+    session.status = "error";
+    if (!session.error) {
+      let detail = "";
+      try { detail = fs.readFileSync(logPath, "utf8").trim().split("\n").slice(-3).join(" ").slice(-500); } catch {}
+      session.error = "ffmpeg 转码失败" + (detail ? ": " + detail : "");
+    }
+  });
+  res.json({ ok: true, id, playlist: "/api/transcode/" + id + "/index.m3u8" });
+});
 
 const transcodeCleanup = setInterval(() => {
   const cutoff = Date.now() - 60 * 60 * 1000;

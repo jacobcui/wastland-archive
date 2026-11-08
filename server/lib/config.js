@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,6 +7,14 @@ export const ROOT = process.env.WASTELAND_ROOT ? path.resolve(process.env.WASTEL
 export const DATA_DIR = process.env.WASTELAND_DATA_DIR ? path.resolve(process.env.WASTELAND_DATA_DIR) : path.join(ROOT, "data");
 export const ISSUES_DIR = path.join(DATA_DIR, "issues");
 export const AUTH_FILE = path.join(DATA_DIR, "auth.json");
+
+/* App state that must survive browser changes. Never put this inside DATA_DIR:
+   DATA_DIR is the portable magazine archive. */
+export const MEDIA_HOME = process.env.WASTELAND_MEDIA_HOME
+  ? path.resolve(process.env.WASTELAND_MEDIA_HOME)
+  : path.join(os.homedir(), ".wasteland_archive");
+export const MEDIA_INDEX_FILE = path.join(MEDIA_HOME, "media-index.json");
+export const MEDIA_CACHE_DIR = path.join(MEDIA_HOME, "transcodes");
 
 export const UPSTREAM = {
   api: "https://api.mkexue.com",

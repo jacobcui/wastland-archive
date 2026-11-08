@@ -94,7 +94,7 @@ function writeResumePositions() {
 
 function resumePosition(row) {
   if (!row) return 0;
-  const recorded = resumePositions[row.id];
+  const recorded = row.server ? null : resumePositions[row.id];
   const raw = recorded && Number.isFinite(recorded.position) ? recorded.position : Number(row.position) || 0;
   const duration = Number(recorded && recorded.duration) || Number(row.duration) || 0;
   if (duration > 0 && raw >= duration - 1.5) return 0;
@@ -299,6 +299,19 @@ async function loadSubtitleForRow(row, token) {
     }
     return;
   }
+  if (row.server) {
+    if (!row.subtitleUrl && !row.hasSubtitle) return;
+    try {
+      const response = await fetch(row.subtitleUrl, { cache: "no-store" });
+      if (!response.ok) return;
+      const text = await response.text();
+      if (token !== subtitleLoadToken || !active.value || active.value.id !== row.id) return;
+      if (applySubtitle(text, row.subtitleName || "字幕", { quiet: true })) {
+        notify("已自动加载同名字幕 · " + (row.subtitleName || "字幕"), "info");
+      }
+    } catch {}
+    return;
+  }
   try {
     const found = await findSiblingSubtitle(row);
     if (!found || token !== subtitleLoadToken || !active.value || active.value.id !== row.id) return;
@@ -312,7 +325,7 @@ const totalBytes = computed(() => media.value.reduce((sum, row) => sum + (row.si
 
 const history = computed(() =>
   media.value
-    .filter((row) => !historyHidden[row.id] && ((row.lastPlayedAt || 0) > 0 || resumePositions[row.id]))
+    .filter((row) => (row.server ? !row.historyHidden : !historyHidden[row.id] && !row.historyHidden) && ((row.lastPlayedAt || 0) > 0 || resumePositions[row.id]))
     .sort((a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0))
     .slice(0, 8)
 );
@@ -321,8 +334,11 @@ function removeHistory(row) {
   if (!row) return;
   historyHidden[row.id] = true;
   writeHistoryHidden();
-  forgetPosition(row);
-  row.lastPlayedAt = 0;
+  row.historyHidden = true;
+  if (!row.server) {
+    forgetPosition(row);
+    row.lastPlayedAt = 0;
+  }
   persist(row);
   notify("已从播放历史移除（文件仍保留）", "info");
 }
@@ -352,6 +368,10 @@ function playHistory(row) {
 const infoRow = ref(null);
 const infoRootInput = ref("");
 const infoPathInput = ref("");
+const folderPathModal = ref(false);
+const folderPathInput = ref("");
+const folderPathError = ref("");
+const folderPathBusy = ref(false);
 const infoFolder = computed(() => {
   if (!infoRow.value || !infoRow.value.folderId) return null;
   return folders.value.find((folder) => folder.id === infoRow.value.folderId) || null;
@@ -979,6 +999,23 @@ function isCurrentMedia(event) {
 
 function persist(row) {
   if (!row) return;
+  if (row.server) {
+    const body = {
+      position: Number(row.position) || 0,
+      duration: Number(row.duration) || 0,
+      lastPlayedAt: Number(row.lastPlayedAt) || 0,
+      historyHidden: Boolean(row.historyHidden),
+    };
+    if (row.subtitleText) body.subtitleText = row.subtitleText;
+    if (row.subtitleName) body.subtitleName = row.subtitleName;
+    fetch("/api/media-library/items/" + encodeURIComponent(row.id), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => {});
+    return;
+  }
   idbPut("media", toRaw(row), row.id).catch(() => {});
 }
 
@@ -1067,6 +1104,11 @@ function dropStreaming() {
   detachStreaming({ keepSession: false });
 }
 
+function clearObjectUrl() {
+  if (objectUrl.value.startsWith("blob:")) URL.revokeObjectURL(objectUrl.value);
+  objectUrl.value = "";
+}
+
 function saveActivePosition() {
   const el = mediaEl();
   if (!el || !active.value) return;
@@ -1089,8 +1131,7 @@ function stopCurrent() {
       el.load();
     } catch {}
   }
-  if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
-  objectUrl.value = "";
+  clearObjectUrl();
   player.playing = false;
   player.ready = false;
   player.loading = false;
@@ -1157,23 +1198,33 @@ async function openMedia(row, { autoplay = false } = {}) {
   player.duration = Number(row.duration) || 0;
   const cached = decodedCache.get(row.id) || null;
   const sourceFile = fileCache.get(row.id) || null;
-  const type = cached ? cached.type : row.type || mimeOf({ name: row.name, type: row.type });
-  let source = cached || sourceFile || row.data || row.blob || null;
-  if (!source) {
-    source = await resolveStoredSource(row);
-    if (source) fileCache.set(row.id, source);
-  }
-  if (source && source instanceof Blob && source.type) {
-    objectUrl.value = URL.createObjectURL(source);
-  } else if (source) {
-    objectUrl.value = URL.createObjectURL(new Blob([source], { type }));
+  if (row.server) {
+    if (!row.fileUrl) {
+      pendingAutoplay.value = false;
+      player.loading = false;
+      player.error = "服务端媒体库没有返回文件地址。";
+      return;
+    }
+    objectUrl.value = new URL(row.fileUrl, window.location.href).href;
   } else {
-    pendingAutoplay.value = false;
-    player.loading = false;
-    player.error = row.folderId
-      ? "无法访问原文件夹，请重新选择该文件夹以恢复读取权限。"
-      : "浏览器不会复制媒体文件；请重新选择该文件，或改用“添加文件夹”保留持久访问。";
-    return;
+    const type = cached ? cached.type : row.type || mimeOf({ name: row.name, type: row.type });
+    let source = cached || sourceFile || row.data || row.blob || null;
+    if (!source) {
+      source = await resolveStoredSource(row);
+      if (source) fileCache.set(row.id, source);
+    }
+    if (source && source instanceof Blob && source.type) {
+      objectUrl.value = URL.createObjectURL(source);
+    } else if (source) {
+      objectUrl.value = URL.createObjectURL(new Blob([source], { type }));
+    } else {
+      pendingAutoplay.value = false;
+      player.loading = false;
+      player.error = row.folderId
+        ? "无法访问原文件夹，请重新选择该文件夹以恢复读取权限。"
+        : "浏览器不会复制媒体文件；请重新选择该文件，或改用“添加文件夹”保留持久访问。";
+      return;
+    }
   }
   await nextTick();
   const el = mediaEl();
@@ -1188,12 +1239,13 @@ async function openMedia(row, { autoplay = false } = {}) {
 async function refresh() {
   loading.value = true;
   try {
-    const [rows, folderRows] = await Promise.all([idbGetAll("media"), idbGetAll("mediaFolders")]);
-    media.value = rows.sort((a, b) => (b.lastPlayedAt || b.addedAt || 0) - (a.lastPlayedAt || a.addedAt || 0));
-    for (const folder of folderRows) {
-      if (folder.handle) folder.handle = markRaw(folder.handle);
-    }
-    folders.value = folderRows.sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+    const response = await fetch("/api/media-library", { cache: "no-store" });
+    if (!response.ok) throw new Error("服务端媒体库不可用 (" + response.status + ")");
+    const data = await response.json();
+    folders.value = (data.folders || []).map((folder) => ({ ...folder, server: true }));
+    media.value = (data.items || [])
+      .map((item) => ({ ...item, server: true }))
+      .sort((a, b) => (b.lastPlayedAt || b.addedAt || 0) - (a.lastPlayedAt || a.addedAt || 0));
     if (!active.value && media.value.length) await openMedia(media.value[0]);
   } catch (error) {
     notify("媒体库不可用: " + error.message, "error");
@@ -1286,7 +1338,9 @@ function onFileChange(event) {
 
 function onDrop(event) {
   dragging.value = false;
-  importFiles(event.dataTransfer && event.dataTransfer.files);
+  if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+    notify("拖入文件无法获得绝对路径；请点击“添加目录路径”并粘贴目录。", "info");
+  }
 }
 
 async function collectMediaDirectory(handle) {
@@ -1351,22 +1405,46 @@ async function importFolderEntries(name, entries, source, handle = null) {
   }
 }
 
-async function addFolder() {
-  if (typeof window.showDirectoryPicker !== "function") {
-    if (folderInput.value) folderInput.value.click();
+function addFolder() {
+  folderPathInput.value = "";
+  folderPathError.value = "";
+  folderPathBusy.value = false;
+  folderPathModal.value = true;
+}
+
+function closeFolderPath() {
+  folderPathModal.value = false;
+  folderPathError.value = "";
+}
+
+async function submitFolderPath() {
+  const pathValue = folderPathInput.value.trim();
+  if (!pathValue) {
+    folderPathError.value = "请输入本机绝对路径";
     return;
   }
+  folderPathBusy.value = true;
+  folderPathError.value = "";
+  folderImporting.value = true;
+  folderStatus.value = "扫描目录 " + pathValue + "…";
   try {
-    folderStatus.value = "选择目录…";
-    const handle = await window.showDirectoryPicker({ mode: "read" });
-    folderStatus.value = "扫描目录 " + handle.name + "…";
-    const entries = await collectMediaDirectory(handle);
-    await importFolderEntries(handle.name, entries, "handle", handle);
+    const response = await fetch("/api/media-library/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: pathValue }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) throw new Error(data.error || "添加目录失败");
+    await refresh();
+    await nextTick();
+    folderPathModal.value = false;
+    notify("已添加目录 · " + pathValue, "success");
   } catch (error) {
+    folderPathError.value = error.message;
+  } finally {
+    folderPathBusy.value = false;
+    folderImporting.value = false;
     folderStatus.value = "";
-    if (error && error.name === "AbortError") return;
-    notify("系统不允许授权该目录，改用文件夹选择器读取（非媒体文件忽略）", "info");
-    if (folderInput.value) folderInput.value.click();
   }
 }
 
@@ -1415,6 +1493,17 @@ async function removeFolder(folder) {
   if (active.value && active.value.folderId === folder.id) {
     stopCurrent();
     active.value = null;
+  }
+  if (folder.server) {
+    try {
+      const response = await fetch("/api/media-library/folders/" + encodeURIComponent(folder.id), { method: "DELETE" });
+      if (!response.ok) throw new Error("移除目录失败");
+      await refresh();
+      notify("已移除目录 · " + folder.name + "（不会删除磁盘文件）", "info");
+    } catch (error) {
+      notify(error.message, "error");
+    }
+    return;
   }
   try {
     for (const row of rows) {
@@ -1502,6 +1591,21 @@ async function reconcileFolder(folder, entries, rootPrefix = "") {
 
 async function rescanFolder(folder) {
   if (!folder || rescanningFolder.value) return;
+  if (folder.server) {
+    rescanningFolder.value = folder.id;
+    try {
+      const response = await fetch("/api/media-library/folders/" + encodeURIComponent(folder.id) + "/rescan", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data.error || "重扫失败");
+      await refresh();
+      notify("重扫完成 · " + folder.name, "success");
+    } catch (error) {
+      notify("重扫失败: " + error.message, "error");
+    } finally {
+      rescanningFolder.value = "";
+    }
+    return;
+  }
   if (!folder.handle) {
     if (typeof window.showDirectoryPicker === "function") {
       rescanningFolder.value = folder.id;
@@ -1614,12 +1718,16 @@ function onPlay(event) {
   }
   if (active.value) {
     active.value.lastPlayedAt = Date.now();
+    active.value.historyHidden = false;
     if (historyHidden[active.value.id]) {
       delete historyHidden[active.value.id];
       writeHistoryHidden();
     }
     const row = media.value.find((item) => item.id === active.value.id);
-    if (row) row.lastPlayedAt = active.value.lastPlayedAt;
+    if (row) {
+      row.lastPlayedAt = active.value.lastPlayedAt;
+      row.historyHidden = false;
+    }
     persistSoon(active.value);
   }
 }
@@ -1829,8 +1937,7 @@ function failStream(message) {
 
 async function attachStream(playlist) {
   streamMode.value = true;
-  if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
-  objectUrl.value = "";
+  clearObjectUrl();
   player.error = null;
   player.loading = true;
   player.ready = false;
@@ -1903,6 +2010,21 @@ async function streamAndPlay({ automatic = false } = {}) {
         return true;
       }
       await dropMediaTranscode(row.id);
+    }
+    if (row.server) {
+      const response = await fetch("/api/media-library/items/" + encodeURIComponent(row.id) + "/transcode", { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || "无法启动本机转码");
+      if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
+      streamSessionId = result.id;
+      streamStarted = false;
+      streamState.value = "transcoding";
+      streamProgress.value = 0;
+      streamStatus.value = "本机转码中，等待首段…";
+      const info = await waitForStream(result.id, row.id, token);
+      if (token !== streamToken || !active.value || active.value.id !== row.id) return false;
+      await attachStream(info.playlist);
+      return true;
     }
     let source = fileCache.get(row.id) || row.data || row.blob || null;
     if (!source) {
@@ -1981,7 +2103,7 @@ async function decodeAndPlay({ automatic = false } = {}) {
     });
     if (!active.value || active.value.id !== row.id) return false;
     decodedCache.set(row.id, blob);
-    if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
+    clearObjectUrl();
     objectUrl.value = URL.createObjectURL(blob);
     player.error = null;
     player.loading = true;
@@ -2096,6 +2218,17 @@ async function removeMedia(row) {
     stopCurrent();
     active.value = null;
   }
+  if (row.server) {
+    try {
+      const response = await fetch("/api/media-library/items/" + encodeURIComponent(row.id), { method: "DELETE" });
+      if (!response.ok) throw new Error("删除失败");
+      await refresh();
+      notify("已从媒体库删除 · " + row.name, "info");
+    } catch (error) {
+      notify("删除失败: " + error.message, "error");
+    }
+    return;
+  }
   try {
     decodedCache.delete(row.id);
     fileCache.delete(row.id);
@@ -2203,25 +2336,23 @@ onBeforeUnmount(() => {
         <b>{{ media.length }}</b>
         <span class="eyebrow">{{ formatBytes(totalBytes) }}</span>
       </div>
-      <button class="btn-hazard" :disabled="importing" @click="pickFile">{{ importing ? "导入中…" : "导入媒体" }}</button>
-      <button class="btn-ghost" :disabled="importing" @click="addFolder">添加文件夹</button>
+      <button class="btn-hazard" @click="addFolder">添加目录路径</button>
     </header>
 
     <section class="media-shelf">
       <div class="media-layout">
         <div class="media-main">
-          <div v-if="!active" class="media-drop panel panel--cut" :class="{ 'is-hot': dragging }" @click="pickFile">
+          <div v-if="!active" class="media-drop panel panel--cut" :class="{ 'is-hot': dragging }" @click="addFolder">
             <div class="media-drop__glyph media-drop__glyph--word">Media</div>
             <div>
-              <div class="eyebrow" style="color: #6ea8fe">LOCAL MEDIA · 本地播放</div>
-              <h2 class="media-drop__title">把视频或音频拖进来，或点击选择文件</h2>
+              <div class="eyebrow" style="color: #6ea8fe">SHARED MEDIA LIBRARY · 服务端媒体库</div>
+              <h2 class="media-drop__title">输入本机目录路径，建立跨浏览器共享的媒体库</h2>
               <p class="media-drop__hint">
-                支持 MP4 / M4V / WebM / MOV / MKV / TS / FLV / AVI / 3GP 与 MP3 / M4A / AAC / FLAC / WAV / OGG / Opus / WMA 等。
-                浏览器原生能解码的会直接播放；不支持时会在播放器里给出编码提示。
+                媒体索引保存在服务端（开发模式 ~/.wasteland_archive；原生 App 为 Application Support），换浏览器或重启后仍然存在。
+                原文件保留在原目录，不会复制进 data/；添加目录后由服务端递归扫描。
               </p>
               <div class="media-drop__actions">
-                <button class="btn-hazard" @click.stop="pickFile">选择媒体文件</button>
-                <button class="btn-ghost" @click.stop="addFolder">添加文件夹</button>
+                <button class="btn-hazard" @click.stop="addFolder">添加目录路径</button>
               </div>
             </div>
           </div>
@@ -2389,8 +2520,7 @@ onBeforeUnmount(() => {
               <h3 class="media-playlist__title">{{ media.length }} 个媒体</h3>
             </div>
             <div class="media-playlist__actions">
-              <button class="mini-btn" :disabled="importing" @click="pickFile">＋ 文件</button>
-              <button class="mini-btn" :disabled="importing" @click="addFolder">＋ 文件夹</button>
+              <button class="mini-btn" @click="addFolder">＋ 目录</button>
             </div>
           </div>
 
@@ -2506,7 +2636,7 @@ onBeforeUnmount(() => {
             </p>
           </details>
 
-          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引与播放进度保存在应用本地存储（不在 data/）；只有“边转码边播放”的临时分片会发给本机 127.0.0.1，不上传外网。</p>
+          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在服务端媒体库（开发模式 ~/.wasteland_archive；原生 App 为 Application Support），换浏览器后仍可见；只有本机转码的临时分片会发给 127.0.0.1，不上传外网。</p>
         </aside>
       </div>
 
@@ -2535,7 +2665,7 @@ onBeforeUnmount(() => {
         @change="onSubtitleChange"
       />
       <p class="media-note">
-        播放列表和文件都只在本机；添加文件夹时会递归扫描，跳过非媒体文件。“移除目录”只移除媒体库副本，不删除磁盘上的文件。浏览器原生不支持时会自动边转码边播放，没有本机 ffmpeg 时才使用内置解码器。
+        媒体库索引保存在服务端，不在浏览器 IndexedDB；换浏览器或重启 App 后仍能看到同一份媒体库。添加目录时会递归扫描，跳过非媒体文件；“移除目录”只移除索引，不删除磁盘文件。
       </p>
     </section>
 
@@ -2556,7 +2686,10 @@ onBeforeUnmount(() => {
           <button class="media-info__copy" @click="copyInfoPath">复制</button>
         </div>
 
-        <template v-if="infoFolder">
+        <template v-if="infoFolder && infoFolder.server">
+          <p class="media-info__hint">路径来自服务端目录索引（{{ infoFolder.rootPath }}），可直接复制，换浏览器后仍然有效。</p>
+        </template>
+        <template v-else-if="infoFolder">
           <label class="media-info__label">目录根路径</label>
           <input v-model="infoRootInput" class="media-info__input" placeholder="/Volumes/MYBAK2/Movies" />
           <p class="media-info__hint">浏览器不会暴露原始绝对路径。填写目录根路径后，会自动拼出每首歌 / 每部片的完整路径。</p>
@@ -2568,8 +2701,34 @@ onBeforeUnmount(() => {
         </template>
 
         <div class="media-info__actions">
-          <button class="btn-hazard" @click="saveInfoPath">保存路径</button>
+          <button v-if="!infoFolder || !infoFolder.server" class="btn-hazard" @click="saveInfoPath">保存路径</button>
           <button class="btn-ghost" @click="closeInfo">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="folderPathModal" class="media-info" @click.self="closeFolderPath">
+      <div class="media-info__panel panel">
+        <div class="media-info__head">
+          <div>
+            <div class="eyebrow">ADD FOLDER · 添加目录</div>
+            <div class="media-info__name">服务端媒体库</div>
+            <div class="media-info__meta">只扫描路径，不复制文件；索引保存在 Application Support / ~/.wasteland_archive</div>
+          </div>
+          <button class="media-info__close" title="关闭" @click="closeFolderPath">×</button>
+        </div>
+        <label class="media-info__label">本机目录绝对路径</label>
+        <input
+          v-model="folderPathInput"
+          class="media-info__input"
+          placeholder="/Volumes/MYBAK2/Movies"
+          @keydown.enter="submitFolderPath"
+        />
+        <p class="media-info__hint">浏览器不会暴露文件夹的真实路径，请直接粘贴。服务端会递归扫描媒体文件；之后换浏览器也会看到同一个媒体库。</p>
+        <p v-if="folderPathError" class="media-info__error">{{ folderPathError }}</p>
+        <div class="media-info__actions">
+          <button class="btn-hazard" :disabled="folderPathBusy" @click="submitFolderPath">{{ folderPathBusy ? "扫描中…" : "添加并扫描" }}</button>
+          <button class="btn-ghost" @click="closeFolderPath">取消</button>
         </div>
       </div>
     </div>
@@ -3153,6 +3312,7 @@ onBeforeUnmount(() => {
 }
 .media-info__copy:hover { background: #6ea8fe; color: #07101f; }
 .media-info__hint { margin: 7px 0 0; font-size: 10px; line-height: 1.7; color: var(--muted); }
+.media-info__error { margin: 8px 0 0; font-size: 10px; line-height: 1.6; color: var(--danger); }
 .media-info__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 @media (max-width: 720px) {
   .media-playlist__head { flex-direction: column; }

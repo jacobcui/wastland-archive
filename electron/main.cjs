@@ -72,6 +72,7 @@ function startServer(port) {
     PORT: String(port),
     WASTELAND_ROOT: root,
     WASTELAND_DATA_DIR: dataDir,
+    WASTELAND_MEDIA_HOME: userData,
     WASTELAND_HOME: path.join(app.getPath("home"), ".wasteland_browser"),
   };
   const bundledBrowsers = path.join(process.resourcesPath, "playwright-browsers");

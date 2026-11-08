@@ -2,7 +2,7 @@
 
 <p align="center"><img src="src/assets/logo-wordmark.png" alt="Wasteland Archive logo" width="440" /></p>
 
-**Version 1.0.8** · [Changelog](CHANGELOG.md)
+**Version 1.1.0** · [Changelog](CHANGELOG.md)
 
 **Wasteland Archive** is an offline-first, local reading terminal for magazines, PDFs, image folders and local media. The shell only opens the door: every collection is a plugin, and every plugin owns its own data.
 
@@ -26,7 +26,7 @@ English | [简体中文](langs/README.zh-CN.md)
 | **MKX Magazine Archive** | Sync the mkexue.com back-issue index, mirror issues, download and read offline with page turning, zoom, pan, spread and filmstrip modes. | Server `data/issues` + browser IndexedDB for reading progress |
 | **PDF Reader** | Import local PDFs, reopen offline, remember the last page, continue or start over. | Browser IndexedDB `wasteland-browser/pdfs` |
 | **Image Browser** | Manage multiple local image folders, sort by name/time, lightbox and keyboard paging. | IndexedDB directory handles / session folders |
-| **Media** | Local video/audio playback, folder trees, playlists, shuffle/loop modes, audio visualizers, resumable playback positions and HLS transcoding. Source files stay in place; only the index, positions and temporary transcode cache are local. | IndexedDB index / file handles + local HLS cache |
+| **Media** | Local video/audio playback, folder trees, playlists, shuffle/loop modes, audio visualizers, SRT/VTT subtitles, resumable playback positions and HLS transcoding. Source files stay in place; the library index is server-side so it follows you across browsers. | Server media index in `~/.wasteland_archive` / Application Support + local HLS cache |
 
 ### MKX archive
 
@@ -54,7 +54,8 @@ Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.co
 - **Resume per file.** Switching tracks, leaving the plugin or restarting the app restores the last playback position; a finished file starts from the beginning.
 - **File info.** INFO shows type, size and path with a copy button; set a folder root or file path once for the browser’s privacy-restricted paths.
 - **Subtitles.** Folder videos auto-load a same-name `.srt` / `.vtt`; load one manually at any time, toggle with CC, and the overlay works in fullscreen.
-- **Non-destructive imports.** Source media stays in its original folder. Folder imports store only metadata, handles and playback positions — no file copies into `data/` or IndexedDB.
+- **Server-backed library.** Add an absolute directory path once; the server scans it and keeps the index, positions and subtitles in `~/.wasteland_archive` (native: Application Support). Switch browsers and the same library is there.
+- **Non-destructive imports.** Source media stays in its original folder. No media copies into `data/` or IndexedDB.
 - Native playback first. Large H.264/AAC MP4 files play directly; local transcoding is only for unsupported formats.
 - On failure: local ffmpeg produces 2-second HLS segments and playback starts with the first segment.
 - Leave the player and return: the HLS session and playback position are reused. No re-upload, no restart from zero.
@@ -63,6 +64,8 @@ Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.co
 - Built-in WASM fallback for smaller files when ffmpeg is unavailable.
 
 Sample: [sample-15s.mp4](https://samplelib.com/mp4/sample-15s.mp4) from samplelib.com.
+
+> **Upgrade note for 1.1.0.** The media library index moved from browser IndexedDB to the server. Old browser entries cannot be migrated automatically because browsers hide absolute paths. Click **添加目录路径** once and paste your media root (for example `/Volumes/MYBAK2/Movies`); the server scans it and the library is then shared by every browser.
 
 ![Media play history](docs/media-history.png)
 
@@ -134,7 +137,7 @@ Useful commands:
 | `make bootstrap` | Environment check/install only |
 | `make status` | Process + login status |
 | `make down` | Stop the server |
-| `make package` | Portable web package → `release/wasteland-archive-1.0.8.tar.gz` |
+| `make package` | Portable web package → `release/wasteland-archive-1.1.0.tar.gz` |
 | `make app` | Native macOS apps (arm64 + Intel x64) → `.app` + zip + dmg |
 | `make app-win` | Windows x64 portable app → `Wasteland-Archive-win-x64.zip` |
 
@@ -147,10 +150,10 @@ make app
 Outputs (Apple Silicon + Intel):
 
 ```text
-release/native/Wasteland-Archive-mac-arm64-1.0.8.dmg
-release/native/Wasteland-Archive-mac-arm64-1.0.8.zip
-release/native/Wasteland-Archive-mac-x64-1.0.8.dmg
-release/native/Wasteland-Archive-mac-x64-1.0.8.zip
+release/native/Wasteland-Archive-mac-arm64-1.1.0.dmg
+release/native/Wasteland-Archive-mac-arm64-1.1.0.zip
+release/native/Wasteland-Archive-mac-x64-1.1.0.dmg
+release/native/Wasteland-Archive-mac-x64-1.1.0.zip
 ```
 
 Both DMGs contain the app plus an **Applications shortcut**. Open the DMG and drag **废土馆藏.app** onto Applications. The app bundles Node, Chromium, `ffmpeg-static` and Playwright headless Chromium. It starts its own internal server on the stable port **5278** and stops it when the app quits.
@@ -171,7 +174,7 @@ make app-win
 Output:
 
 ```text
-release/native/Wasteland-Archive-win-x64-1.0.8.zip
+release/native/Wasteland-Archive-win-x64-1.1.0.zip
 ```
 
 Unzip it on Windows 10/11 x64 and run **废土馆藏.exe**. This is a portable build — no installer, no Node installation. It bundles Windows Electron, ffmpeg and Playwright headless Chromium.
@@ -192,9 +195,10 @@ The top bar language switch persists the choice in localStorage. A reload is opt
 | --- | --- | --- |
 | Magazine archive | `data/issues` | `~/Library/Application Support/wasteland-archive/data/issues` |
 | Auth token | `data/auth.json` | same under native app data |
-| Browser media/PDF/image libraries | IndexedDB `wasteland-browser` | same IndexedDB, app profile |
+| Media library index / positions / subtitles | `~/.wasteland_archive/media-index.json` | `~/Library/Application Support/wasteland-archive/media-index.json` |
+| PDF/image libraries | IndexedDB `wasteland-browser` | same IndexedDB, app profile |
 | Custom backgrounds | `~/.wasteland_browser/bg_screens` | shared with the same path |
-| HLS temp files | `data/transcodes` (1h TTL) | native app data/transcodes |
+| HLS temp files | `~/.wasteland_archive/transcodes` (1h TTL) | Application Support `transcodes` |
 
 To move magazines into the native app, quit the app, copy the contents of your web `data/issues` into the native `.../data/issues`, and reopen the app.
 
@@ -218,7 +222,7 @@ Electron (optional native shell)
 ```
 
 - PDF.js renders PDFs locally; worker and CMaps are served by the local server.
-- Media source files stay in their original folders. The app stores only metadata, playback positions, folder handles and a temporary HLS cache; no media is copied into `data/`.
+- Media source files stay in their original folders. The app stores the library index, playback positions and subtitles outside `data/`, plus a temporary HLS cache; no media is copied into `data/` or IndexedDB.
 - `~/.wasteland_browser/bg_screens` is the only shared user directory outside the app bundle.
 
 ## Browser support
