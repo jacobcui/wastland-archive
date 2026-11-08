@@ -2,6 +2,12 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [1.1.5] — 2026-11-08
+
+### Fixed
+
+- The Media add-folder dialog and storage note now show the single active media-home path returned by the running server, plus the active mode (dev server or native app), instead of the ambiguous “Application Support / ~/.wasteland_archive” wording.
+
 ## [1.1.4] — 2026-11-08
 
 ### Added

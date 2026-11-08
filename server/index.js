@@ -5,7 +5,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { PORT, ROOT, ISSUES_DIR, DATA_DIR, MEDIA_CACHE_DIR, UPSTREAM } from "./lib/config.js";
+import { PORT, ROOT, ISSUES_DIR, DATA_DIR, MEDIA_CACHE_DIR, MEDIA_HOME, UPSTREAM } from "./lib/config.js";
 import { readAuthRecord, session, normalizeCredentials } from "./lib/auth.js";
 import { getMagazines, normalizeIssue } from "./lib/api.js";
 import { ensureDirs, isComplete, listLocalIssues, localIssue, readProgress, writeProgress } from "./lib/store.js";
@@ -459,7 +459,12 @@ app.use(
 /* DATA_DIR, so changing browsers does not lose the library.          */
 /* ------------------------------------------------------------------ */
 app.get("/api/media-library", (_req, res) => {
-  res.json({ ok: true, ...mediaLibrarySnapshot() });
+  res.json({
+    ok: true,
+    mediaHome: MEDIA_HOME,
+    mediaMode: process.env.WASTELAND_MEDIA_HOME ? "native" : "server",
+    ...mediaLibrarySnapshot(),
+  });
 });
 
 app.post("/api/media-library/folders", async (req, res) => {

@@ -35,6 +35,8 @@ const AUDIO_EXT = new Set(["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "w
 
 const media = ref([]);
 const folders = ref([]);
+const mediaHome = ref("");
+const mediaMode = ref("server");
 const active = ref(null);
 const objectUrl = ref("");
 const loading = ref(true);
@@ -1242,6 +1244,8 @@ async function refresh() {
     const response = await fetch("/api/media-library", { cache: "no-store" });
     if (!response.ok) throw new Error("服务端媒体库不可用 (" + response.status + ")");
     const data = await response.json();
+    mediaHome.value = data.mediaHome || "";
+    mediaMode.value = data.mediaMode === "native" ? "native" : "server";
     folders.value = (data.folders || []).map((folder) => ({ ...folder, server: true }));
     media.value = (data.items || [])
       .map((item) => ({ ...item, server: true }))
@@ -2348,7 +2352,7 @@ onBeforeUnmount(() => {
               <div class="eyebrow" style="color: #6ea8fe">SHARED MEDIA LIBRARY · 服务端媒体库</div>
               <h2 class="media-drop__title">输入本机目录路径，建立跨浏览器共享的媒体库</h2>
               <p class="media-drop__hint">
-                媒体索引保存在服务端（开发模式 ~/.wasteland_archive；原生 App 为 Application Support），换浏览器或重启后仍然存在。
+                媒体索引保存在 {{ mediaHome || "服务端媒体目录" }}（{{ mediaMode === "native" ? "原生 App" : "开发服务器" }}），换浏览器或重启后仍然存在。
                 原文件保留在原目录，不会复制进 data/；添加目录后由服务端递归扫描。
               </p>
               <div class="media-drop__actions">
@@ -2636,7 +2640,7 @@ onBeforeUnmount(() => {
             </p>
           </details>
 
-          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在服务端媒体库（开发模式 ~/.wasteland_archive；原生 App 为 Application Support），换浏览器后仍可见。HLS 临时分片在停止播放或重启服务后删除，可随时清空；不上传外网。</p>
+          <p class="media-playlist__note">媒体文件保留在原目录，不会复制进 data/ 或 App 包。索引、播放进度和字幕文本保存在 {{ mediaHome || "服务端媒体目录" }}，换浏览器后仍可见。HLS 临时分片在停止播放或重启服务后删除，可随时清空；不上传外网。</p>
         </aside>
       </div>
 
@@ -2713,7 +2717,7 @@ onBeforeUnmount(() => {
           <div>
             <div class="eyebrow">ADD FOLDER · 添加目录</div>
             <div class="media-info__name">服务端媒体库</div>
-            <div class="media-info__meta">只扫描路径，不复制文件；索引保存在 Application Support / ~/.wasteland_archive</div>
+            <div class="media-info__meta">只扫描路径，不复制文件；索引保存在 {{ mediaHome || "服务端媒体目录" }}（{{ mediaMode === "native" ? "原生 App" : "开发服务器" }}）</div>
           </div>
           <button class="media-info__close" title="关闭" @click="closeFolderPath">×</button>
         </div>
