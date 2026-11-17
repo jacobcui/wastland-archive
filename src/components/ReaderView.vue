@@ -430,6 +430,20 @@ function clampPan() {
   pan.y = Math.max(-bounds.y, Math.min(bounds.y, pan.y));
 }
 
+const PAN_KEY_STEP = 88;
+
+/* ArrowUp/ArrowDown scroll a zoomed page like a document: the book slides
+ * opposite to the requested direction so the content below/above comes into
+ * view. Returns false when there is nothing to scroll vertically. */
+function scrollVertically(direction, fast) {
+  if (reader.value.zoom <= 1) return false;
+  const bounds = panBounds();
+  if (!bounds.y) return false;
+  const step = PAN_KEY_STEP * (fast ? 3 : 1);
+  pan.y = Math.max(-bounds.y, Math.min(bounds.y, pan.y - direction * step));
+  return true;
+}
+
 function onWheel(event) {
   if (!hasModifier(event)) return;
   event.preventDefault();
@@ -506,6 +520,9 @@ function onKey(event) {
   } else if (key === "ArrowLeft" || key === "PageUp") {
     event.preventDefault();
     jump(-1);
+  } else if (!hasModifier(event) && (key === "ArrowUp" || key === "ArrowDown")) {
+    // Only consume the keys when the zoomed page actually overflows vertically.
+    if (scrollVertically(key === "ArrowDown" ? 1 : -1, event.shiftKey)) event.preventDefault();
   } else if (key === "Home") {
     goToPage(1);
   } else if (key === "End") {
@@ -572,7 +589,7 @@ onBeforeUnmount(() => {
         <strong>{{ reader.title }} · {{ reader.volume }}</strong>
         <span>
           LOCAL ARCHIVE · {{ totalLabel }} PAGES · {{ platformLabel }} ·
-          拖拽翻页 · ←/→ · F 全屏 · S 双页 · R 胶片 ·
+          拖拽翻页 · ←/→ · ↑/↓ 上下移动 · F 全屏 · S 双页 · R 胶片 ·
           <kbd class="keycap">{{ modKeyLabel }}</kbd> + 滚轮 缩放 ·
           <kbd class="keycap">{{ modKeyLabel }}</kbd> + 拖动 平移
         </span>
@@ -659,6 +676,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="reader.zoom > 1" class="reader__pan-hint">
+        <kbd class="keycap">↑</kbd>/<kbd class="keycap">↓</kbd> 上下移动 · Shift 加速 ·
         <kbd class="keycap">{{ modKeyLabel }}</kbd> 拖动平移 · <kbd class="keycap">{{ modKeyLabel }}</kbd> 滚轮缩放
       </div>
 
