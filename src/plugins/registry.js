@@ -47,6 +47,18 @@ export const plugins = [
     status: "ready",
     component: () => import("@/plugins/media-player/MediaPlayerPlugin.vue"),
   },
+  {
+    id: "epub-reader",
+    code: "PLUGIN 05",
+    mark: "EPUB",
+    nameKey: "plugins.epub.name",
+    latin: "EPUB READER",
+    descriptionKey: "plugins.epub.desc",
+    tagKeys: ["plugins.epub.tag1", "plugins.epub.tag2", "plugins.epub.tag3"],
+    accent: "#b06ae0",
+    status: "ready",
+    component: () => import("@/plugins/epub-reader/EpubReaderPlugin.vue"),
+  },
 ];
 
 export function pluginById(id) {

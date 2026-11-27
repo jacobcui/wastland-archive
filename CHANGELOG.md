@@ -2,6 +2,33 @@
 
 All notable changes to Wasteland Archive are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **EPUB reader plugin.** A fifth plugin on the deck imports local `.epub` books into the
+  browser shelf, renders reflowable text with the book's own CSS, images and fonts, and
+  navigates through the full nested chapter list (EPUB 3 nav or EPUB 2 NCX).
+- Reading position is saved per book (chapter plus scroll offset) and offered back as
+  **Continue reading** or **Start over** on reopen; the shelf card shows title, author,
+  chapter count, cover and progress.
+- Reading controls: paper / sepia / night page themes, narrow / standard / wide measure,
+  independent text-size and zoom steps, and drag-to-pan.
+
+### Fixed
+
+- EPUB chapters had broken images and styles because blob URLs cannot resolve relative
+  paths such as `../images/pic.png`; those references are now rewritten to in-memory
+  blob URLs before the chapter is rendered.
+- Chapters containing HTML named entities (`&nbsp;`, `&mdash;`, `&hellip;` and friends)
+  aborted the browser's XHTML parse with "Entity not defined". These are now converted to
+  numeric entities, since XML only predefines `amp/lt/gt/quot/apos`.
+
+### Changed
+
+- IndexedDB schema is now v6; the new `epubs` store holds imported books. PDF and
+  image-folder stores are untouched.
+
 ## [1.3.3] — 2026-11-08
 
 ### Fixed

@@ -1,6 +1,6 @@
 const DB_NAME = "wasteland-browser";
-const DB_VERSION = 5;
-const STORES = ["pdfs", "folders", "imageFolders", "media", "mediaFolders", "mediaTranscodes"];
+const DB_VERSION = 6;
+const STORES = ["pdfs", "epubs", "folders", "imageFolders", "media", "mediaFolders", "mediaTranscodes"];
 const LEGACY_MEDIA_CLEANUP_KEY = "wasteland.media.legacy-cache-cleared.v1";
 let dbPromise = null;
 

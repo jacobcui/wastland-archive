@@ -44,6 +44,8 @@ stay outside it.
 | `src/App.vue` | shell, topbar, plugin deck, update badge/dialog |
 | `src/plugins/mkx-archive/` | MKX magazine plugin |
 | `src/plugins/pdf-reader/` | PDF plugin |
+| `src/plugins/epub-reader/` | EPUB plugin |
+| `src/lib/epub.js` | Dependency-free EPUB (OCF/ZIP + OPF/NCX/NAV) parser |
 | `src/plugins/image-browser/` | image folder plugin |
 | `src/plugins/media-player/` | media player, fullscreen visualizer, subtitles |
 | `src/stores/` | archive/session/media/update plugin state |
@@ -86,8 +88,19 @@ stay outside it.
     `DATA_DIR/transcodes` directories themselves; do not create them at boot.
   - Legacy 1.0.x media Blob stores (`media`, `mediaFolders`, `mediaTranscodes`) are
     purged once at startup. PDF/image IndexedDB stores are preserved.
-- **PDF / Image:** still use IndexedDB `wasteland-browser`; do not remove those stores
-  when touching media cleanup.
+- **PDF / EPUB / Image:** still use IndexedDB `wasteland-browser`; do not remove those
+  stores when touching media cleanup. The EPUB shelf is the `epubs` store (schema v6);
+  books are stored whole as an ArrayBuffer plus cover/metadata fields.
+- **EPUB specifics:** the reader has **no npm dependency**. `src/lib/epub.js` inflates the
+  ZIP with `DecompressionStream("deflate-raw")`, parses container.xml → OPF → spine, reads
+  the EPUB 3 nav document or falls back to the EPUB 2 NCX, and exposes every resource as a
+  blob URL. Two normalisations are mandatory and must not be removed:
+  1. relative asset paths inside chapters are rewritten to their blob URLs (blob URLs have
+     no directory context, so `../images/x.png` would otherwise 404);
+  2. HTML named entities are converted to numeric entities, because XML only predefines
+     `amp/lt/gt/quot/apos` and anything else aborts the XHTML parse with "Entity not defined".
+  The asset-rewrite regex must be constructed **inside** the function; a module-level
+  regex with `/g` keeps `lastIndex` between calls and silently corrupts the markup.
 - **Backgrounds:** `~/.wasteland_browser/bg_screens`.
 
 ### Media library specifics

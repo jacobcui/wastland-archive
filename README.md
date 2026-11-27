@@ -15,7 +15,7 @@ English | [简体中文](langs/README.zh-CN.md)
 ## Highlights
 
 - **Offline-first.** Archives, PDFs, image folders and media live on this machine. Nothing is uploaded to a third-party cloud.
-- **Plugin deck.** Four independent plugins: MKX magazine archive, PDF reader, image browser and media player. Disabling a plugin never deletes its data.
+- **Plugin deck.** Five independent plugins: MKX magazine archive, PDF reader, EPUB reader, image browser and media player. Disabling a plugin never deletes its data.
 - **Native desktop apps.** Double-clickable Electron apps for macOS (Apple Silicon + Intel) and Windows x64. No terminal, Node or separate server is required after installation.
 - **Update checks.** On startup the app checks GitHub Releases in the background (cached for 6 hours); an update badge opens a download dialog, and ↻ next to the version forces a check. The dialog detects your system, selects the right installer, and downloads it in one click; native builds open the DMG/ZIP automatically.
 - **On-demand media transcode.** Unsupported videos use an in-memory HLS session; ffmpeg runs only for the segments the player requests. Pausing stops further work, and stopping/closing releases the segments.
@@ -28,6 +28,7 @@ English | [简体中文](langs/README.zh-CN.md)
 | --- | --- | --- |
 | **MKX Magazine Archive** | Sync the mkexue.com back-issue index, mirror issues, download and read offline with page turning, zoom, pan, spread and filmstrip modes. | Server `data/issues` + browser IndexedDB for reading progress |
 | **PDF Reader** | Import local PDFs, reopen offline, remember the last page, continue or start over. | Browser IndexedDB `wasteland-browser/pdfs` |
+| **EPUB Reader** | Import local EPUB books, render reflowable text with images and the book's own styles, navigate by chapter list, and resume the chapter plus scroll position. | Browser IndexedDB `wasteland-browser/epubs` |
 | **Image Browser** | Manage multiple local image folders, sort by name/time, lightbox and keyboard paging. | IndexedDB directory handles / session folders |
 | **Media** | Local video/audio playback, folder trees, playlists, shuffle/loop modes, audio visualizers, SRT/VTT subtitles, resumable playback positions and on-demand HLS transcoding. Source files stay in place; the library index is server-side and transcode segments stay in memory. | Server media index in `~/.wasteland_archive` / Application Support |
 
@@ -44,6 +45,30 @@ Downloads are deliberately **serialized**: only one archive job runs at a time, 
 Sample: [sample10.pdf](https://samplelib.com/pdf/sample10.pdf) from samplelib.com.
 
 ![Sample PDF](docs/sample-pdf.png)
+
+### EPUB reader
+
+Import a local `.epub` and read it offline. The parser is dependency-free: it unpacks
+the OCF/ZIP container with the browser's own `DecompressionStream`, reads
+`META-INF/container.xml` → OPF, and builds the spine and chapter list from either an
+EPUB 3 navigation document or an EPUB 2 NCX.
+
+- **Reflowable reading.** Chapters render in a sandboxed frame with the book's own CSS,
+  images and fonts, so the layout follows the publisher's design instead of a bare text dump.
+- **Chapter list.** The **目录 / Contents** drawer shows the full nested TOC; nested entries
+  jump to their anchor inside the chapter.
+- **Reading position.** The chapter and scroll offset are saved per book and offered back
+  as **继续阅读 / Continue reading** or **从头开始 / Start over**.
+- **Reading controls.** Paper / sepia / night page themes, narrow / standard / wide measure,
+  independent text-size and zoom steps, and drag-to-pan when zoomed in.
+- **Compatibility fixes.** Relative asset paths are rewritten to in-memory blob URLs so
+  images and stylesheets resolve, and HTML named entities such as `&nbsp;` and `&mdash;`
+  are converted to numeric entities — XML only defines `amp/lt/gt/quot/apos`, so those
+  entities would otherwise abort the browser's XHTML parse.
+- Search inside the book, DRM-protected books and fixed-layout/comic EPUBs are not supported.
+
+Books live in this browser's IndexedDB (`wasteland-browser/epubs`) and are never uploaded
+to a server. Deleting a book only removes it from the local shelf.
 
 ### Image browser
 
@@ -202,7 +227,7 @@ The top bar language switch persists the choice in localStorage. A reload is opt
 | Magazine archive | `data/issues` | `~/Library/Application Support/wasteland-archive/data/issues` |
 | Auth token | `data/auth.json` | same under native app data |
 | Media library index / positions / subtitles | `~/.wasteland_archive/media-index.json` | `~/Library/Application Support/wasteland-archive/media-index.json` |
-| PDF/image libraries | IndexedDB `wasteland-browser` | same IndexedDB, app profile |
+| PDF / EPUB / image libraries | IndexedDB `wasteland-browser` | same IndexedDB, app profile |
 | Legacy 1.0.x media Blobs | purged automatically once at startup | same |
 | Custom backgrounds | `~/.wasteland_browser/bg_screens` | shared with the same path |
 | HLS transcode segments | server-library items: memory only, cleared on stop; legacy upload route: OS temp directory, auto-cleaned | OS temp directory (shared) |
@@ -239,6 +264,7 @@ Electron (optional native shell)
 ```
 
 - PDF.js renders PDFs locally; worker and CMaps are served by the local server.
+- The EPUB reader is dependency-free: the ZIP is inflated in the browser with `DecompressionStream`, and chapters are served to a sandboxed frame from in-memory blob URLs.
 - Media source files stay in their original folders. The app stores the library index, playback positions and subtitles outside `data/`; server-library transcode segments are held in memory only. No media is copied into `data/` or IndexedDB.
 - `~/.wasteland_browser/bg_screens` is the only shared user directory outside the app bundle.
 
@@ -247,6 +273,7 @@ Electron (optional native shell)
 - Current Chrome, Edge, Safari and Firefox.
 - Tested with Chromium, Firefox and WebKit for home, MKX, PDF, images and media basics.
 - Persistent image-folder handles use the File System Access API (Chromium). Safari/Firefox use a compatible folder picker and mark session folders as temporary.
+- The EPUB reader needs `DecompressionStream` (Chrome/Edge 103+, Safari 16.4+, Firefox 113+). Unsupported browsers report a clear error instead of failing silently.
 - Media codecs depend on the browser; the support matrix reports native / maybe / needs transcode at runtime.
 
 ## Project layout
